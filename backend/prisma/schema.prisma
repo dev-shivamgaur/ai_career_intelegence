@@ -1,0 +1,1033 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// App role. USER is a learner. ADMIN can edit the career, job, and exam catalog.
+enum Role {
+  USER
+  ADMIN
+}
+
+/// Where the learner is in their career. Used for document rules and seniority.
+enum UserStatus {
+  STUDENT
+  FRESHER
+  WORKING_PROFESSIONAL
+}
+
+/// Highest schooling stage. Decides which marksheets are required.
+enum EducationLevel {
+  HIGH_SCHOOL
+  INTERMEDIATE
+  DIPLOMA
+  UNDERGRADUATE
+  POSTGRADUATE
+}
+
+/// Who wrote the skill onto the profile: the learner, a detector, or a resume extraction.
+enum SkillSource {
+  USER
+  AI_DETECTED
+  DOCUMENT
+}
+
+/// How close the learner is to a required skill. MISSING means the want-list did not match the resume.
+enum SkillStatus {
+  STRONG
+  GOOD
+  NEEDS_IMPROVEMENT
+  MISSING
+}
+
+/// How urgent a requirement, gap, or roadmap task is.
+enum Priority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+/// Whether a career skill is mandatory or only suggested.
+enum RequirementType {
+  REQUIRED
+  RECOMMENDED
+  NICE_TO_HAVE
+}
+
+/// Progress of a roadmap task or an exam topic.
+enum TaskStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+/// Learning window for a roadmap task: first week through six months.
+enum RoadmapPhase {
+  D7
+  D30
+  D60
+  D90
+  D180
+}
+
+/// Kind of file the learner uploaded. RESUME skills feed the skill comparison.
+enum DocumentType {
+  DEGREE
+  MARKSHEET
+  CERTIFICATE
+  RESUME
+  OTHER
+}
+
+/// Pipeline state while a file is stored and read for skills.
+enum DocumentStatus {
+  UPLOADING
+  PROCESSING
+  EXTRACTING
+  COMPLETED
+  FAILED
+}
+
+/// Where a catalog job is performed.
+enum WorkType {
+  REMOTE
+  HYBRID
+  ONSITE
+}
+
+/// Bucket for a user's match percent against one job.
+enum JobMatchLabel {
+  STRONG
+  POTENTIAL
+  LOW
+}
+
+/// Result of checking a learner against a government opportunity. Not a legal certificate.
+enum EligibilityStatus {
+  ELIGIBLE
+  POSSIBLY_ELIGIBLE
+  NOT_ELIGIBLE
+  NEEDS_VERIFICATION
+}
+
+/// How trustworthy a research source is.
+enum SourceQuality {
+  OFFICIAL
+  TRUSTED
+  ESTABLISHED
+  COMMUNITY
+  UNVERIFIED
+}
+
+/// What kind of page a research session saved.
+enum SourceType {
+  JOB
+  LEARNING
+  GOVERNMENT
+  CAREER_GUIDE
+  COMMUNITY
+}
+
+/// Lifecycle of one web-research run.
+enum ResearchStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+/// How the learner prefers to study. Shapes practice prompts.
+enum LearningStyle {
+  PROJECT
+  COURSE
+  MIXED
+  READING
+}
+
+/// Work setting the learner wants. Stored on the profile for later job fit.
+enum RemotePreference {
+  REMOTE
+  HYBRID
+  ONSITE
+  ANY
+}
+
+/// Kind of work row. JOB or INTERNSHIP with a real employer sets seniority.
+enum ExperienceType {
+  INTERNSHIP
+  JOB
+  FREELANCE
+  FRESHER
+}
+
+/// Why an in-app notification was created.
+enum NotificationType {
+  ANALYSIS
+  OPPORTUNITY
+  PROGRESS
+  PROFILE
+}
+
+/// Who sent a copilot message.
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+/// Private jobs and skill gaps, or a government exam plan. Sarkari users skip the tech syllabus.
+enum CareerTrack {
+  PRIVATE_TECH
+  GOVERNMENT_EXAM
+}
+
+/// Group used to list government exams in the catalog.
+enum GovernmentExamCategory {
+  SSC
+  UPSC
+  BANKING
+  RAILWAY
+  DEFENCE
+  STATE
+  TEACHING
+}
+
+/// Login account. Created by OTP auth, not by a seed file. Owns profile, documents, and goals.
+model User {
+  id                 String    @id @default(cuid())
+  phone              String    @unique
+  name               String?
+  email              String?   @unique
+  avatarInitials     String?
+  role               Role      @default(USER)
+  isDemo             Boolean   @default(false)
+  onboardingComplete Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  profile            Profile?
+  refreshTokens      RefreshToken[]
+  documents          Document[]
+  careerGoals        CareerGoal[]
+  skillGaps          SkillGap[]
+  roadmaps           Roadmap[]
+  jobMatches         JobMatch[]
+  researchSessions   ResearchSession[]
+  chatSessions       ChatSession[]
+  progressSnapshots  ProgressSnapshot[]
+  progressEvents     ProgressEvent[]
+  notifications      Notification[]
+  governmentElig     GovernmentEligibility[]
+  governmentExamPlans GovernmentExamPlan[]
+  sarkariMocks       SarkariMockAttempt[]
+
+  @@index([phone])
+  @@map("user")
+}
+
+/// Learner details from onboarding. primaryStack locks the lane (for example nodejs) used in skill comparison.
+model Profile {
+  id                   String            @id @default(cuid())
+  userId               String            @unique
+  name                 String
+  status               UserStatus        @default(FRESHER)
+  educationLevel       EducationLevel    @default(UNDERGRADUATE)
+  location             String?
+  availableHoursPerDay Int               @default(2)
+  learningStyle        LearningStyle     @default(PROJECT)
+  remotePreference     RemotePreference  @default(HYBRID)
+  careerTrack          CareerTrack       @default(PRIVATE_TECH)
+  prepGoalText         String?
+  targetExamSlug       String?
+  primaryStack         String?
+  completionPercent    Int               @default(0)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  user                 User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  education            Education[]
+  userSkills           UserSkill[]
+  certifications       Certification[]
+  projects             Project[]
+  experience           Experience[]
+
+  @@index([userId])
+  @@map("profile")
+}
+
+/// One degree or school row on the profile. May be typed by the user or copied from a paper.
+model Education {
+  id             String         @id @default(cuid())
+  profileId      String
+  degree         String
+  institution    String
+  specialization String?
+  graduationYear Int?
+  level          EducationLevel @default(UNDERGRADUATE)
+  scoreLabel     String?
+  aiDetected     Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  profile        Profile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("education")
+}
+
+/// Shared skill name dictionary. One row per unique name, reused by users, careers, and jobs.
+model Skill {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  category  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userSkills              UserSkill[]
+  careerRequirements      CareerSkillRequirement[]
+  jobSkills               JobSkill[]
+  skillGaps               SkillGap[]
+
+  @@index([category])
+  @@map("skill")
+}
+
+/// A skill this learner has. Resume uploads set source DOCUMENT and proficiency 45. This is the "have" side.
+model UserSkill {
+  id           String      @id @default(cuid())
+  profileId    String
+  skillId      String
+  proficiency  Int         @default(0)
+  source       SkillSource @default(USER)
+  status       SkillStatus @default(GOOD)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  profile      Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  skill        Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, skillId])
+  @@index([profileId])
+  @@map("user_skill")
+}
+
+/// Certificate on the profile. Counted as extra evidence in the fit score.
+model Certification {
+  id         String   @id @default(cuid())
+  profileId  String
+  name       String
+  issuer     String
+  year       Int?
+  aiDetected Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("certification")
+}
+
+/// Project on the profile. Name and skills are added to the known-skill set during comparison.
+model Project {
+  id          String   @id @default(cuid())
+  profileId   String
+  name        String
+  description String
+  skills      String[]
+  year        Int?
+  link        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("project")
+}
+
+/// Work history. A real job or internship raises seniority so lessons skip beginner material.
+model Experience {
+  id           String         @id @default(cuid())
+  profileId    String
+  title        String
+  organization String
+  type         ExperienceType @default(FRESHER)
+  summary      String
+  startYear    Int?
+  endYear      Int?
+  isPresent    Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  profile      Profile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("experience")
+}
+
+/// Uploaded file metadata. The bytes live in storage; this row tracks type and processing status.
+model Document {
+  id           String         @id @default(cuid())
+  userId       String
+  filename     String
+  originalName String
+  mimeType     String?
+  type         DocumentType   @default(OTHER)
+  sizeBytes    Int            @default(0)
+  storageKey   String
+  status       DocumentStatus @default(UPLOADING)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  extraction   DocumentExtraction?
+
+  @@index([userId])
+  @@index([status])
+  @@map("document")
+}
+
+/// Facts pulled from one document. skillsDetected is copied onto UserSkill and used as resume evidence.
+model DocumentExtraction {
+  id              String   @id @default(cuid())
+  documentId      String   @unique
+  degree          String?
+  subjects        Json?
+  skillsDetected  String[]
+  summary         String?
+  suggestedFields Json?
+  rawPayload      Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("document_extraction")
+}
+
+/// Catalog role the admin inserts once (title, slug, coreTopics, stackLanes). Users pick this; they do not create it unless the goal is custom.
+model Career {
+  id                      String   @id @default(cuid())
+  title                   String
+  slug                    String   @unique
+  overview                String
+  marketExpectations      String
+  entryLevelExpectations  String
+  isCustom                Boolean  @default(false)
+  syllabusSlug            String?
+  coreTopics              String[] @default([])
+  stackLanes              Json?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  requirements            CareerSkillRequirement[]
+  goals                   CareerGoal[]
+  roadmaps                Roadmap[]
+  ingestJobs              IngestCareerJob[]
+
+  @@index([slug])
+  @@map("career")
+}
+
+/// Want-list for one career. Written when the syllabus syncs. layer CORE or STACK_REQUIRED is what missing skills are judged against. stackLane keeps Node skills off the Java lane.
+model CareerSkillRequirement {
+  id         String          @id @default(cuid())
+  careerId   String
+  skillId    String
+  importance Priority        @default(MEDIUM)
+  type       RequirementType @default(REQUIRED)
+  stackLane  String?
+  layer      String          @default("CORE")
+  createdAt  DateTime        @default(now())
+
+  career     Career          @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  skill      Skill           @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([careerId, skillId, stackLane])
+  @@index([careerId])
+  @@index([careerId, stackLane])
+  @@map("career_skill_requirement")
+}
+
+/// Links one user to the career they chose. Active goal decides which requirement list is compared to the resume. Scores are filled after analysis.
+model CareerGoal {
+  id               String   @id @default(cuid())
+  userId           String
+  careerId         String
+  isActive         Boolean  @default(true)
+  customTitle      String?
+  estimatedMatch   Int?
+  breakdown        Json?
+  whyItMayFit      String[]
+  strongAreas      String[]
+  missingAreas     String[]
+  potentialChallenges String[]
+  evidence         Json?
+  lastAnalyzedAt   DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  career           Career   @relation(fields: [careerId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isActive])
+  @@map("career_goal")
+}
+
+model SkillGap {
+  id             String      @id @default(cuid())
+  userId         String
+  skillId        String
+  currentStatus  SkillStatus @default(MISSING)
+  required       Boolean     @default(true)
+  priority       Priority    @default(MEDIUM)
+  estimatedHours Int         @default(10)
+  why            Json?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill          Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
+  @@index([userId])
+  @@index([priority])
+  @@map("skill_gap")
+}
+
+model Roadmap {
+  id         String   @id @default(cuid())
+  userId     String
+  careerId   String
+  title      String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  career     Career        @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  tasks      RoadmapTask[]
+
+  @@index([userId])
+  @@map("roadmap")
+}
+
+model RoadmapTask {
+  id                String       @id @default(cuid())
+  roadmapId         String
+  title             String
+  description       String
+  why               String?
+  priority          Priority     @default(MEDIUM)
+  estimatedEffort   String?
+  status            TaskStatus   @default(NOT_STARTED)
+  relatedSkill      String?
+  suggestedResource String?
+  phase             RoadmapPhase @default(D30)
+  sortOrder         Int          @default(0)
+  note              String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  roadmap           Roadmap      @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+
+  @@index([roadmapId])
+  @@index([status])
+  @@map("roadmap_task")
+}
+
+model ResearchSession {
+  id                 String         @id @default(cuid())
+  userId             String
+  query              String
+  status             ResearchStatus @default(PENDING)
+  summary            String?
+  sourcesAnalyzed    Int            @default(0)
+  jobDescriptions    Int            @default(0)
+  learningResources  Int            @default(0)
+  governmentSources  Int            @default(0)
+  skillPatterns      Int            @default(0)
+  verificationStatus String?
+  timeline           Json?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sources            ResearchSource[]
+  findings           ResearchFinding[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("research_session")
+}
+
+model ResearchSource {
+  id                   String        @id @default(cuid())
+  sessionId            String
+  title                String
+  type                 SourceType
+  domain               String?
+  quality              SourceQuality @default(UNVERIFIED)
+  keyFinding           String?
+  usedInRecommendation Boolean       @default(false)
+  confidence           Int           @default(50)
+  url                  String?
+  createdAt            DateTime      @default(now())
+
+  session              ResearchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("research_source")
+}
+
+model ResearchFinding {
+  id        String   @id @default(cuid())
+  sessionId String
+  title     String
+  content   String
+  tags      String[]
+  createdAt DateTime @default(now())
+
+  session   ResearchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("research_finding")
+}
+
+model KnowledgeChunk {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  tags      String[]
+  source    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([title])
+  @@map("knowledge_chunk")
+}
+
+model Job {
+  id           String   @id @default(cuid())
+  company      String
+  role         String
+  location     String?
+  workType     WorkType @default(HYBRID)
+  experience   String?
+  description  String?
+  whyMatches   String?
+  priority     Priority @default(MEDIUM)
+  isDemo       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  skills       JobSkill[]
+  matches      JobMatch[]
+
+  @@index([isDemo])
+  @@index([role])
+  @@map("job")
+}
+
+model JobSkill {
+  id        String  @id @default(cuid())
+  jobId     String
+  skillId   String
+  isMissing Boolean @default(false)
+
+  job       Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  skill     Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, skillId])
+  @@index([jobId])
+  @@map("job_skill")
+}
+
+model JobMatch {
+  id           String        @id @default(cuid())
+  userId       String
+  jobId        String
+  matchPercent Int
+  matchLabel   JobMatchLabel @default(POTENTIAL)
+  whyMatches   String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job          Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@index([userId])
+  @@map("job_match")
+}
+
+model GovernmentOpportunity {
+  id                   String            @id @default(cuid())
+  organization         String
+  opportunity          String
+  eligibility          String
+  ageRequirement       String?
+  educationRequirement String?
+  location             String?
+  deadline             String?
+  sourceVerification   String?
+  officialNote         String?
+  isDemo               Boolean           @default(true)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  eligibilities        GovernmentEligibility[]
+
+  @@index([isDemo])
+  @@map("government_opportunity")
+}
+
+model GovernmentEligibility {
+  id           String            @id @default(cuid())
+  userId       String
+  opportunityId String
+  status       EligibilityStatus @default(NEEDS_VERIFICATION)
+  note         String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity  GovernmentOpportunity  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, opportunityId])
+  @@index([userId])
+  @@map("government_eligibility")
+}
+
+model GovernmentExam {
+  id                    String                   @id @default(cuid())
+  slug                  String                   @unique
+  name                  String
+  shortName             String
+  conductingBody        String
+  category              GovernmentExamCategory
+  overview              String
+  eligibility           String
+  ageLimit              String?
+  educationRequirement  String?
+  examPattern           Json?
+  stages                String[]
+  officialNote          String?
+  isDemo                Boolean                  @default(true)
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+
+  subjects              GovernmentExamSubject[]
+  plans                 GovernmentExamPlan[]
+  webSnapshots          SarkariWebSnapshot[]
+  mockAttempts          SarkariMockAttempt[]
+  knowledgeChunks       SarkariKnowledgeChunk[]
+
+  @@index([category])
+  @@index([slug])
+  @@map("government_exam")
+}
+
+model GovernmentExamSubject {
+  id         String   @id @default(cuid())
+  examId     String
+  name       String
+  weightage  String?
+  topics     String[]
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  exam       GovernmentExam                 @relation(fields: [examId], references: [id], onDelete: Cascade)
+  progress   GovernmentExamTopicProgress[]
+  mockAttempts SarkariMockAttempt[]
+
+  @@index([examId])
+  @@map("government_exam_subject")
+}
+
+model GovernmentExamPlan {
+  id           String   @id @default(cuid())
+  userId       String
+  examId       String
+  isActive     Boolean  @default(true)
+  targetYear   Int?
+  dailyMinutes Int      @default(120)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam         GovernmentExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  progress     GovernmentExamTopicProgress[]
+
+  @@unique([userId, examId])
+  @@index([userId])
+  @@map("government_exam_plan")
+}
+
+model GovernmentExamTopicProgress {
+  id            String     @id @default(cuid())
+  planId        String
+  subjectId     String
+  topic         String
+  status        TaskStatus @default(NOT_STARTED)
+  revisedCount  Int        @default(0)
+  lastRevisedAt DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  plan          GovernmentExamPlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  subject       GovernmentExamSubject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, subjectId, topic])
+  @@index([planId])
+  @@map("government_exam_topic_progress")
+}
+
+model SarkariWebSnapshot {
+  id        String   @id @default(cuid())
+  examId    String
+  url       String
+  site      String
+  title     String
+  excerpt   String   @db.Text
+  kind      String   @default("news")
+  fetchedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  exam      GovernmentExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, url])
+  @@index([examId])
+  @@index([site])
+  @@map("sarkari_web_snapshot")
+}
+
+model SarkariMockAttempt {
+  id           String   @id @default(cuid())
+  userId       String
+  examId       String
+  subjectId    String?
+  scorePercent Int
+  takenAt      DateTime @default(now())
+  note         String?
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam         GovernmentExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  subject      GovernmentExamSubject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  @@index([userId, examId])
+  @@index([examId])
+  @@map("sarkari_mock_attempt")
+}
+
+model SarkariKnowledgeChunk {
+  id        String   @id @default(cuid())
+  examId    String?
+  title     String
+  content   String   @db.Text
+  source    String?
+  sourceUrl String?
+  kind      String
+  tags      String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  exam      GovernmentExam? @relation(fields: [examId], references: [id], onDelete: SetNull)
+
+  @@index([examId])
+  @@index([kind])
+  @@map("sarkari_knowledge_chunk")
+}
+
+model ProgressSnapshot {
+  id                     String   @id @default(cuid())
+  userId                 String
+  skillsCompleted        Int      @default(0)
+  skillsTotal            Int      @default(0)
+  roadmapPercent         Int      @default(0)
+  learningHours          Int      @default(0)
+  projectsCompleted      Int      @default(0)
+  applications           Int      @default(0)
+  interviewPrepPercent   Int      @default(0)
+  skillProgressOverTime  Json?
+  applicationsOverTime   Json?
+  roadmapCompletionOverTime Json?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("progress_snapshot")
+}
+
+model ProgressEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("progress_event")
+}
+
+model ChatSession {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+
+  @@index([userId])
+  @@map("chat_session")
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  role      ChatRole
+  content   String
+  createdAt DateTime @default(now())
+
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("chat_message")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, read])
+  @@map("notification")
+}
+
+model RefreshToken {
+  id               String    @id @default(cuid())
+  userId           String
+  tokenHash        String    @unique
+  jti              String    @unique
+  familyId         String
+  fingerprintHash  String
+  userAgent        String?
+  replacedByHash   String?
+  revoked          Boolean   @default(false)
+  reusedAt         DateTime?
+  expiresAt        DateTime
+  createdAt        DateTime  @default(now())
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_token")
+}
+
+/// One admin or scheduler batch that fans out into per-career ingest jobs.
+enum IngestRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  PARTIAL_FAILED
+  FAILED
+}
+
+enum IngestTrigger {
+  SCHEDULER
+  ADMIN
+  CREATE
+}
+
+enum IngestJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum IngestStepStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model IngestRun {
+  id            String          @id @default(cuid())
+  trigger       IngestTrigger
+  status        IngestRunStatus @default(QUEUED)
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  totalJobs     Int             @default(0)
+  completedJobs Int             @default(0)
+  failedJobs    Int             @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  jobs          IngestCareerJob[]
+
+  @@index([createdAt])
+  @@map("ingest_run")
+}
+
+model IngestCareerJob {
+  id         String          @id @default(cuid())
+  runId      String
+  careerId   String
+  status     IngestJobStatus @default(QUEUED)
+  result     Json?
+  error      String?
+  startedAt  DateTime?
+  finishedAt DateTime?
+  durationMs Int?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  run   IngestRun       @relation(fields: [runId], references: [id], onDelete: Cascade)
+  career Career         @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  steps IngestJobStep[]
+
+  @@index([runId])
+  @@index([careerId, createdAt])
+  @@map("ingest_career_job")
+}
+
+model IngestJobStep {
+  id         String           @id @default(cuid())
+  jobId      String
+  stepKey    String
+  status     IngestStepStatus
+  startedAt  DateTime         @default(now())
+  finishedAt DateTime?
+  meta       Json?
+  error      String?
+
+  job IngestCareerJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("ingest_job_step")
+}

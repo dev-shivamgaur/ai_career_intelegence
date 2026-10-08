@@ -5,7 +5,7 @@ behavior), BACKLOG-Hn (behavior-changing fix, needs separate approval), CLOSED.
 
 | ID | Issue | Where | Status |
 |----|-------|-------|--------|
-| I-01 | Migrations do not create `career.syllabusSlug`, `coreTopics`, `stackLanes`, `career_skill_requirement.stackLane`, `layer`, `profile.primaryStack`; fresh `migrate deploy` fails at `20261002133000` | `backend/prisma/migrations` | MVP (M0.3-M0.5) |
+| I-01 | Migrations do not create `career.syllabusSlug`, `coreTopics`, `stackLanes`, `career_skill_requirement.stackLane`, `layer`, `profile.primaryStack`; fresh `migrate deploy` fails at `20261002133000` | `backend/prisma/migrations` | CLOSED (M0.3-M0.5): `20261002130000_schema_drift_repair` added; fresh deploy + smoke pass; restored copy and dev DB `migrate resolve --applied`, empty diff, identical row counts |
 | I-02 | `Skill.name` exact case-sensitive unique; no alias table; lexicon cache never invalidated | `schema.prisma`, `ai/skill-lexicon.service.ts` | MVP (M1, M7) |
 | I-03 | `skillMatches` bidirectional substring matching ("go" matches "mongodb") | `ai/skill-match.ts` | BACKLOG-H7 |
 | I-04 | `scoreLane` substring keywords ("java" inside "javascript") | `ai/stack-lanes.ts` | BACKLOG-H7 |

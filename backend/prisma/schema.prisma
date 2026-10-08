@@ -283,19 +283,95 @@ model Education {
 
 /// Shared skill name dictionary. One row per unique name, reused by users, careers, and jobs.
 model Skill {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  category  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  name           String   @unique
+  category       String
+  /// Market Intelligence: cached normalizeSkillName(name). Not unique until duplicates are merged.
+  normalizedName String?
+  /// Market Intelligence: controlled domain. category stays as the legacy free-form label.
+  domainId       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
+  domain                  SkillDomain? @relation(fields: [domainId], references: [id], onDelete: SetNull)
+  aliases                 SkillAlias[]
   userSkills              UserSkill[]
   careerRequirements      CareerSkillRequirement[]
   jobSkills               JobSkill[]
   skillGaps               SkillGap[]
 
   @@index([category])
+  @@index([normalizedName])
+  @@index([domainId])
   @@map("skill")
+}
+
+/// Controlled skill-domain vocabulary. Admin-managed; AI may only suggest existing keys.
+model SkillDomain {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  label     String
+  parentId  String?
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parent    SkillDomain?  @relation("SkillDomainTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  SkillDomain[] @relation("SkillDomainTree")
+  skills    Skill[]
+
+  @@map("skill_domain")
+}
+
+enum SkillAliasStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Alternate spelling of a skill ("NodeJS" for "Node.js"). Only APPROVED aliases resolve.
+model SkillAlias {
+  id              String           @id @default(cuid())
+  skillId         String
+  alias           String
+  normalizedAlias String           @unique
+  status          SkillAliasStatus @default(APPROVED)
+  /// SEED | ADMIN | CANDIDATE
+  source          String           @default("SEED")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  skill           Skill            @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([skillId])
+  @@map("skill_alias")
+}
+
+/// Market Intelligence tunables (weights, thresholds, retention defaults). Code defaults apply when a key is absent.
+model IntelConfig {
+  key       String   @id
+  value     Json
+  version   Int      @default(1)
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("intel_config")
+}
+
+/// Append-only audit of IntelConfig changes.
+model IntelConfigChange {
+  id        String   @id @default(cuid())
+  key       String
+  version   Int
+  oldValue  Json?
+  newValue  Json
+  changedBy String?
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
+  @@map("intel_config_change")
 }
 
 /// A skill this learner has. Resume uploads set source DOCUMENT and proficiency 45. This is the "have" side.
@@ -445,6 +521,10 @@ model CareerSkillRequirement {
   type       RequirementType @default(REQUIRED)
   stackLane  String?
   layer      String          @default("CORE")
+  /// Provenance: LEGACY | ADMIN | ROADMAP | SEED | LLM. Existing writers do not set it yet (hygiene H8).
+  source     String          @default("LEGACY")
+  sourceRef  String?
+  lastSeenAt DateTime?
   createdAt  DateTime        @default(now())
 
   career     Career          @relation(fields: [careerId], references: [id], onDelete: Cascade)

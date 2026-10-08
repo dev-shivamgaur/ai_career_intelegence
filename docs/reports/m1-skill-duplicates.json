@@ -1,0 +1,74 @@
+{
+  "generatedAt": "2026-10-08T20:50:56.200Z",
+  "totalSkills": 375,
+  "groups": [
+    {
+      "normalizedName": "cicd",
+      "skills": [
+        {
+          "id": "cmuuow3uo0048iatwtj409fwy",
+          "name": "CI/CD",
+          "category": "Stack",
+          "references": 1
+        },
+        {
+          "id": "cmuv8n9it00hbiam85q8we4dd",
+          "name": "CI / CD",
+          "category": "Core",
+          "references": 1
+        }
+      ]
+    },
+    {
+      "normalizedName": "influxdb",
+      "skills": [
+        {
+          "id": "cmuuow45j008eiatwq6hsls8j",
+          "name": "InfluxDB",
+          "category": "Stack",
+          "references": 1
+        },
+        {
+          "id": "cmuv8n9jn00htiam8nv4o63lo",
+          "name": "Influx DB",
+          "category": "Core",
+          "references": 1
+        }
+      ]
+    },
+    {
+      "normalizedName": "reactrouter",
+      "skills": [
+        {
+          "id": "cmuv6xb3h0071iam8wws4wqsx",
+          "name": "React Router",
+          "category": "Document",
+          "references": 1
+        },
+        {
+          "id": "cmuuow4gh00eeiatwzfc0m8v8",
+          "name": "react-router",
+          "category": "Stack",
+          "references": 1
+        }
+      ]
+    },
+    {
+      "normalizedName": "ssltls",
+      "skills": [
+        {
+          "id": "cmuuow40m006ziatwjkjlqhks",
+          "name": "SSL/TLS",
+          "category": "Stack",
+          "references": 1
+        },
+        {
+          "id": "cmuv8taoi00l4iam8ujv7xipy",
+          "name": "SSL / TLS",
+          "category": "Core",
+          "references": 1
+        }
+      ]
+    }
+  ]
+}

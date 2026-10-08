@@ -25,6 +25,8 @@ import { CommonModule } from './common/common.module';
 import { AdminModule } from './admin/admin.module';
 import { WebModule } from './web/web.module';
 import { QueueModule } from './queue/queue.module';
+import { IntelConfigModule } from './intel-config/intel-config.module';
+import { SkillIntelModule } from './skill-intel/skill-intel.module';
 
 @Module({
   imports: [
@@ -54,6 +56,8 @@ import { QueueModule } from './queue/queue.module';
     AdminModule,
     WebModule,
     QueueModule,
+    IntelConfigModule,
+    SkillIntelModule,
   ],
 })
 export class AppModule {}

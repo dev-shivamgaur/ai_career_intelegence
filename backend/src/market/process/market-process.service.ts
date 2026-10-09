@@ -4,7 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MarketConsumer, NonRetryableError, type HandlerResult } from '../queue/market-consumer';
 import { MarketPublisher } from '../queue/market-publisher.service';
 import { MARKET_QUEUES, type MarketMessage } from '../queue/market-queue.constants';
-import type { MarketStage, StageContext } from './market-stage';
+import type { MarketStage, StageContext, StageRow } from './market-stage';
 
 const BATCH = 100;
 
@@ -75,15 +75,19 @@ export class MarketProcessService implements OnModuleInit {
       take: BATCH,
     });
     for (const row of rows) {
-      let status = row.processingStatus;
-      let stage = byFrom.get(status);
+      let current: StageRow = row;
+      let stage = byFrom.get(row.processingStatus);
       try {
         while (stage) {
-          await stage.run({ ...row, processingStatus: status }, ctx);
-          status = stage.to;
-          await this.prisma.marketRawJob.update({ where: { id: row.id }, data: { processingStatus: status, processingError: null } });
+          await stage.run(current, ctx);
+          // Reload so the next stage sees what this one wrote (e.g. the MarketJob link).
+          current = await this.prisma.marketRawJob.update({
+            where: { id: row.id },
+            data: { processingStatus: stage.to, processingError: null },
+            include: { source: { select: { id: true, companyId: true } } },
+          });
           counters[stage.name] = (counters[stage.name] ?? 0) + 1;
-          stage = byFrom.get(status);
+          stage = byFrom.get(current.processingStatus);
         }
         counters.processed += 1;
       } catch (err) {
@@ -99,7 +103,8 @@ export class MarketProcessService implements OnModuleInit {
     const remaining = await this.prisma.marketRawJob.count({
       where: { sourceId, processingStatus: { in: [...byFrom.keys()] } },
     });
-    return { counters, remaining };
+    const stageCounters = (ctx.cache.get('counters') as Record<string, number> | undefined) ?? {};
+    return { counters: { ...counters, ...stageCounters }, remaining };
   }
 
   private orderedStages(): MarketStage[] {

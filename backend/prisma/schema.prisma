@@ -299,6 +299,7 @@ model Skill {
   careerRequirements      CareerSkillRequirement[]
   jobSkills               JobSkill[]
   skillGaps               SkillGap[]
+  marketJobSkills         MarketJobSkill[]
 
   @@index([category])
   @@index([normalizedName])
@@ -1327,6 +1328,7 @@ model MarketRawJob {
 
   source             MarketSource           @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   marketJob          MarketJob?             @relation(fields: [marketJobId], references: [id], onDelete: SetNull)
+  skills             MarketJobSkill[]
 
   @@unique([sourceId, externalId])
   @@index([processingStatus])
@@ -1384,9 +1386,48 @@ model MarketJob {
 
   company            Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
   rawJobs            MarketRawJob[]
+  skills             MarketJobSkill[]
 
   @@index([companyId, normalizedTitle])
   @@index([status, lastSeenAt])
   @@index([firstSeenAt])
   @@map("market_job")
+}
+
+enum MarketSkillMethod {
+  RULE
+  LLM
+  RULE_LLM
+}
+
+/// One skill a posting asks for. Structured fields are kept forever; the evidence excerpt follows the source retention policy.
+model MarketJobSkill {
+  id               String            @id @default(cuid())
+  marketJobId      String
+  rawJobId         String
+  rawName          String
+  normalizedName   String
+  skillId          String?
+  /// EXACT | NORMALIZED | ALIAS | LEXICON | NONE (unresolved, waiting for review)
+  resolveMethod    String
+  level            RequirementType
+  confidence       Float
+  method           MarketSkillMethod
+  /// Excerpt containing the match, validated against the description at extraction time.
+  evidence         String?
+  evidenceStart    Int?
+  evidenceEnd      Int?
+  yearsRequired    Int?
+  extractorVersion String
+  createdAt        DateTime          @default(now())
+
+  marketJob        MarketJob         @relation(fields: [marketJobId], references: [id], onDelete: Cascade)
+  rawJob           MarketRawJob      @relation(fields: [rawJobId], references: [id], onDelete: Cascade)
+  skill            Skill?            @relation(fields: [skillId], references: [id], onDelete: SetNull)
+
+  @@unique([rawJobId, normalizedName])
+  @@index([skillId])
+  @@index([marketJobId])
+  @@index([normalizedName])
+  @@map("market_job_skill")
 }

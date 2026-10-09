@@ -4,6 +4,8 @@ import { IntelConfigModule } from '../intel-config/intel-config.module';
 import { SkillIntelModule } from '../skill-intel/skill-intel.module';
 import { ConnectorRegistry } from './connectors/connector-registry';
 import { MarketHttpClient } from './http/market-http-client';
+import { ExtractStage } from './extract/extract.stage';
+import { MarketLlmExtractor } from './extract/market-llm-extractor.service';
 import { MarketFetchService } from './ingest/market-fetch.service';
 import { MarketJobsController } from './jobs/market-jobs.controller';
 import { MarketJobsService } from './jobs/market-jobs.service';
@@ -38,6 +40,8 @@ import { MarketSourcesService } from './sources/market-sources.service';
     MarketProcessService,
     DedupeStage,
     MarketJobsService,
+    MarketLlmExtractor,
+    ExtractStage,
   ],
   exports: [MarketRunService, MarketPublisher],
 })

@@ -5,6 +5,10 @@ import { SkillIntelModule } from '../skill-intel/skill-intel.module';
 import { ConnectorRegistry } from './connectors/connector-registry';
 import { MarketHttpClient } from './http/market-http-client';
 import { MarketFetchService } from './ingest/market-fetch.service';
+import { MarketJobsController } from './jobs/market-jobs.controller';
+import { MarketJobsService } from './jobs/market-jobs.service';
+import { DedupeStage } from './process/dedupe.stage';
+import { MarketProcessService } from './process/market-process.service';
 import { MarketConsumer } from './queue/market-consumer';
 import { MarketPublisher } from './queue/market-publisher.service';
 import { MarketRabbitConnection } from './queue/market-rabbit.connection';
@@ -18,7 +22,7 @@ import { MarketSourcesService } from './sources/market-sources.service';
 
 @Module({
   imports: [AuthModule, IntelConfigModule, SkillIntelModule],
-  controllers: [MarketSourcesController, MarketRunsController],
+  controllers: [MarketSourcesController, MarketRunsController, MarketJobsController],
   providers: [
     MarketHttpClient,
     ConnectorRegistry,
@@ -31,6 +35,9 @@ import { MarketSourcesService } from './sources/market-sources.service';
     MarketRetentionService,
     MarketHealthService,
     MarketScheduler,
+    MarketProcessService,
+    DedupeStage,
+    MarketJobsService,
   ],
   exports: [MarketRunService, MarketPublisher],
 })

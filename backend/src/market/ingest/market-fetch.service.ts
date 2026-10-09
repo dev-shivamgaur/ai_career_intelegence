@@ -9,6 +9,7 @@ import { MarketConsumer, NonRetryableError, type HandlerResult } from '../queue/
 import { MarketPublisher } from '../queue/market-publisher.service';
 import { MARKET_MAX_ATTEMPTS, MARKET_QUEUES, type MarketMessage } from '../queue/market-queue.constants';
 import { effectiveRetention, fetchBlocker, termsReviewProblem, type EffectiveRetention } from '../sources/compliance';
+import { syncMarketJobsForSource } from '../process/market-job-sync';
 import { planRawJobs } from './raw-job-diff';
 
 const MAX_DESCRIPTION_CHARS = 100_000;
@@ -156,6 +157,7 @@ export class MarketFetchService implements OnModuleInit {
     await this.updateMany(plan.reopenedIds, { listingStatus: 'OPEN', closedAt: null });
     await this.updateMany(plan.staleIds, { listingStatus: 'STALE' });
     await this.updateMany(plan.closeIds, { listingStatus: 'CLOSED', closedAt: now });
+    await syncMarketJobsForSource(this.prisma, source.id);
 
     await this.prisma.marketSource.update({
       where: { id: source.id },

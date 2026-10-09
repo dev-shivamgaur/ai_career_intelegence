@@ -1177,6 +1177,7 @@ model Company {
   updatedAt DateTime @updatedAt
 
   sources   MarketSource[]
+  jobs      MarketJob[]
 
   @@map("company")
 }
@@ -1319,14 +1320,73 @@ model MarketRawJob {
   processorVersion   String?
   processingError    String?
   contentPurgedAt    DateTime?
+  /// Set by cross-source dedupe; many raw rows can point at one MarketJob.
+  marketJobId        String?
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
 
   source             MarketSource           @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  marketJob          MarketJob?             @relation(fields: [marketJobId], references: [id], onDelete: SetNull)
 
   @@unique([sourceId, externalId])
   @@index([processingStatus])
   @@index([sourceId, listingStatus])
   @@index([lastSeenAt])
+  @@index([marketJobId])
   @@map("market_raw_job")
+}
+
+enum MarketSeniority {
+  INTERN
+  JUNIOR
+  MID
+  SENIOR
+  STAFF
+  PRINCIPAL
+  LEAD
+  MANAGER
+}
+
+enum MarketEmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  TEMPORARY
+}
+
+/// One real-world vacancy after normalization and cross-source dedupe. Demand counts each MarketJob once.
+model MarketJob {
+  id                 String                @id @default(cuid())
+  companyId          String
+  title              String
+  normalizedTitle    String
+  seniority          MarketSeniority?
+  workType           WorkType?
+  locationText       String?
+  countries          String[]              @default([])
+  isRemote           Boolean               @default(false)
+  experienceMinYears Int?
+  experienceMaxYears Int?
+  employmentType     MarketEmploymentType?
+  postedAt           DateTime?
+  firstSeenAt        DateTime
+  lastSeenAt         DateTime
+  closedAt           DateTime?
+  status             MarketListingStatus   @default(OPEN)
+  /// Bottom-k sketch of hashed description shingles; survives the raw-text purge so dedupe keeps working.
+  shingleSketch      Int[]                 @default([])
+  primaryRawJobId    String?
+  sourceCount        Int                   @default(1)
+  normalizerVersion  String
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  company            Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rawJobs            MarketRawJob[]
+
+  @@index([companyId, normalizedTitle])
+  @@index([status, lastSeenAt])
+  @@index([firstSeenAt])
+  @@map("market_job")
 }

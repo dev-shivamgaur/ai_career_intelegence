@@ -74,3 +74,39 @@ correction across skills of a career/lane, confirmation over consecutive steps, 
 
 `MARKET_PIPELINE_ENABLED`, `MARKET_SCHEDULER_ENABLED`, `MARKET_LLM_EXTRACTION`, `MARKET_UI`,
 `MARKET_SKILL_GAP_FIELD`, and worker `WORKER_QUEUES`.
+
+## Implementation notes (as built)
+
+- `market.process` runs one task per source that processes up to 100 raw rows through the stage
+  registry (`dedupe` PENDING->DEDUPED, `extract` DEDUPED->EXTRACTED, `classify` EXTRACTED->DONE) and
+  enqueues a follow-up task while rows remain. A failing row is marked FAILED; the batch continues.
+- Title patterns live in `MarketCareerProfile` (1:1 with `Career`) instead of a
+  `Career.marketTitlePatterns` column, so existing career responses stay unchanged.
+- Additive columns from M1 (`Skill.normalizedName`, `Skill.domainId`, and
+  `CareerSkillRequirement.source/sourceRef/lastSeenAt`) do appear in existing responses that return
+  whole rows; they are nullable/defaulted and no existing field changed.
+- Extraction: rule pass (curated seed + market vocabulary + approved aliases + domain skills,
+  section-aware levels) and an optional LLM pass whose quotes must be found verbatim in the text.
+  Every `MarketJobSkill` stores an evidence span; the excerpt follows the source retention policy.
+- Unresolved names are upserted as `SkillCandidate` (counts recomputed, never incremented).
+- `MARKET_LLM_EXTRACTION` additionally needs a configured LLM; the daily budget is
+  `IntelConfig extraction.llmDailyLimit` (Redis counter `market:llm:<date>`).
+
+## M6 vertical slice runbook and quality gate
+
+1. Admin -> Market sources: add 5-10 companies across Greenhouse, Lever and Ashby; record each
+   terms review; test-fetch; enable.
+2. Admin -> Market slice: set title patterns for Backend and Frontend ("Use suggestions" is a
+   starting point), save.
+3. With `MARKET_PIPELINE_ENABLED=true` and a worker on `WORKER_QUEUES=career,market`, run
+   "Fetch all enabled" from Market runs (scheduler stays off). Processing follows automatically.
+4. Review the slice report: top skills per career with drill-down to jobs, sources and evidence;
+   unclassified titles; unresolved names. Counts are raw `ACTIVE_STOCK` counts; no percentages
+   or trends are published from the slice.
+5. Labelled sample (50-100 jobs):
+   `npx ts-node scripts/market/export-label-sample.ts --size 60 --out <file>`; correct each
+   item's `label` and set `labelled: true`. The file contains posting text: keep it local.
+6. Gate: `npx ts-node scripts/market/quality-gate.ts --file <file>` prints each check and
+   `VERDICT: GO|FIX`. Proposed targets (to confirm): extraction precision >= 0.85, recall >= 0.70,
+   classification precision >= 0.90, 0 false merges, unresolved-skill rate < 20%, 3 consecutive
+   clean daily fetch runs. Scale Gate A (about 25 companies) opens only on GO.

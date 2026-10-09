@@ -184,6 +184,138 @@ export function getHealth() {
   return http.get<MarketHealth>("/admin/market/health");
 }
 
+export interface SliceSummary {
+  basis: "ACTIVE_STOCK";
+  asOf: string;
+  openJobs: number;
+  classification: { classified: number; unclassified: number; pending: number };
+  careers: Array<{ careerId: string; title: string; slug: string | null; jobCount: number; companyCount: number }>;
+  quality: {
+    skillRows: number;
+    unresolvedSkillRows: number;
+    unresolvedSkillRate: number | null;
+    unresolvedNames: number;
+    pendingCandidates: number;
+    rawJobsLinked: number;
+    marketJobs: number;
+    mergedJobs: number;
+    mergeRate: number | null;
+    unclassifiedRate: number | null;
+    processing: Record<string, number>;
+    failedRows: number;
+    purgedDescriptions: number;
+  };
+  fetchRuns: Array<{ id: string; trigger: string; status: MarketRunStatus; startedAt: string | null; finishedAt: string | null }>;
+  consecutiveCleanFetchRuns: number;
+}
+
+export interface SliceSkill {
+  key: string;
+  skillId: string | null;
+  name: string;
+  resolved: boolean;
+  jobCount: number;
+  requiredCount: number;
+  preferredCount: number;
+  niceCount: number;
+  companyCount: number;
+}
+
+export interface SliceCareerSkills {
+  basis: "ACTIVE_STOCK";
+  career: { id: string; title: string; slug: string };
+  jobCount: number;
+  companyCount: number;
+  skills: SliceSkill[];
+}
+
+export interface SliceSkillJobs {
+  jobs: Array<{
+    id: string;
+    title: string;
+    locationText: string | null;
+    seniority: string | null;
+    firstSeenAt: string;
+    sourceCount: number;
+    company: { id: string; name: string };
+    careers: Array<{ method: string; matchedPattern: string | null; confidence: number }>;
+    skills: Array<{
+      rawName: string;
+      level: "REQUIRED" | "RECOMMENDED" | "NICE_TO_HAVE";
+      confidence: number;
+      method: "RULE" | "LLM" | "RULE_LLM";
+      evidence: string | null;
+      evidenceStart: number | null;
+      evidenceEnd: number | null;
+      yearsRequired: number | null;
+      extractorVersion: string;
+      rawJob: {
+        id: string;
+        externalId: string;
+        url: string | null;
+        contentPurgedAt: string | null;
+        source: { id: string; type: MarketSourceType; boardToken: string };
+      };
+    }>;
+  }>;
+}
+
+export interface CareerMarketProfile {
+  id: string;
+  title: string;
+  slug: string;
+  profile: { titlePatterns: string[]; excludePatterns: string[]; enabled: boolean; updatedAt: string } | null;
+  suggested: { titlePatterns: string[]; excludePatterns: string[] } | null;
+  openJobs: number;
+}
+
+export interface SkillCandidateRow {
+  id: string;
+  name: string;
+  normalizedName: string;
+  status: "PENDING" | "APPROVED" | "MAPPED" | "REJECTED" | "MERGED";
+  jobCount: number;
+  companyCount: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  suggestedSkill: { id: string; name: string } | null;
+  resolvedSkill: { id: string; name: string } | null;
+  suggestionMethod: string | null;
+  suggestionScore: number | null;
+}
+
+export function getSlice() {
+  return http.get<SliceSummary>("/admin/market/slice");
+}
+
+export function getSliceCareerSkills(careerId: string) {
+  return http.get<SliceCareerSkills>(`/admin/market/slice/careers/${careerId}/skills`);
+}
+
+export function getSliceSkillJobs(careerId: string, key: string) {
+  return http.get<SliceSkillJobs>(`/admin/market/slice/careers/${careerId}/skills/${encodeURIComponent(key)}/jobs`);
+}
+
+export function getCareerProfiles() {
+  return http.get<{ careers: CareerMarketProfile[]; unclassifiedSample: Array<{ id: string; title: string; normalizedTitle: string; company: { name: string } }> }>(
+    "/admin/market/careers",
+  );
+}
+
+export function saveCareerProfile(careerId: string, input: { titlePatterns: string[]; excludePatterns: string[]; enabled: boolean }) {
+  return http.put(`/admin/market/careers/${careerId}/profile`, input);
+}
+
+export function startReclassifyRun() {
+  return http.post<{ runId: string | null; taskCount: number }>("/admin/market/runs/reclassify", {});
+}
+
+export function listCandidates(status = "PENDING") {
+  return http.get<{ total: number; counts: Record<string, number>; items: SkillCandidateRow[] }>(
+    `/admin/market/candidates?status=${encodeURIComponent(status)}&take=100`,
+  );
+}
+
 export function purgeSource(id: string, mode: "policy" | "full") {
   return http.post<{ descriptionsPurged: number; payloadsPurged: number; excerptsCleared: number }>(
     `/admin/market/sources/${id}/purge`,

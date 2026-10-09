@@ -2,6 +2,7 @@ import { BrandLogo } from "@/components/brand/BrandLogo";
 import { useAuth, useTheme } from "@/store/hooks";
 import {
   HiOutlineBriefcase,
+  HiOutlineChartBar,
   HiOutlineCollection,
   HiOutlineGlobe,
   HiOutlineLogout,
@@ -24,6 +25,7 @@ const links = [
   { to: "/admin/opportunities", label: "Vacancies", icon: HiOutlineBriefcase },
   { to: "/admin/market/sources", label: "Market sources", icon: HiOutlineGlobe },
   { to: "/admin/market/runs", label: "Market runs", icon: HiOutlineRefresh },
+  { to: "/admin/market/slice", label: "Market slice", icon: HiOutlineChartBar },
 ];
 
 export function AdminLayout() {

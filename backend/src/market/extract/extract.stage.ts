@@ -5,6 +5,7 @@ import { IntelConfigService } from '../../intel-config/intel-config.service';
 import { CANONICAL_SKILL_SEED } from '../../skill-intel/skill-aliases.seed';
 import { normalizeSkillName } from '../../skill-intel/skill-normalize';
 import { SkillResolverService, type SkillResolution } from '../../skill-intel/skill-resolver.service';
+import { SkillCandidateService } from '../candidates/skill-candidate.service';
 import type { MarketStage, StageContext, StageRow } from '../process/market-stage';
 import { MarketProcessService } from '../process/market-process.service';
 import { MarketRetentionService } from '../retention/market-retention.service';
@@ -36,6 +37,7 @@ export class ExtractStage implements MarketStage, OnModuleInit {
     private readonly llmExtractor: MarketLlmExtractor,
     private readonly pipeline: MarketProcessService,
     private readonly retention: MarketRetentionService,
+    private readonly candidates: SkillCandidateService,
   ) {}
 
   onModuleInit() {
@@ -76,13 +78,19 @@ export class ExtractStage implements MarketStage, OnModuleInit {
     const version = usedLlm ? `${RULE_EXTRACTOR_VERSION}+${LLM_EXTRACTOR_VERSION}` : RULE_EXTRACTOR_VERSION;
 
     const rows = this.toRows(merged, resolved, text, excerptMax, row, version);
+    const previous = await this.prisma.marketJobSkill.findMany({
+      where: { rawJobId: row.id, skillId: null },
+      select: { normalizedName: true },
+    });
     await this.prisma.$transaction([
       this.prisma.marketJobSkill.deleteMany({ where: { rawJobId: row.id } }),
       this.prisma.marketJobSkill.createMany({ data: rows, skipDuplicates: true }),
       this.prisma.marketRawJob.update({ where: { id: row.id }, data: { processorVersion: version } }),
     ]);
+    const unresolved = rows.filter((r) => !r.skillId).map((r) => r.normalizedName);
+    await this.candidates.refresh([...unresolved, ...previous.map((p) => p.normalizedName)]);
     this.bump(ctx, 'skillsExtracted', rows.length);
-    this.bump(ctx, 'skillsUnresolved', rows.filter((r) => !r.skillId).length);
+    this.bump(ctx, 'skillsUnresolved', unresolved.length);
   }
 
   private toRows(

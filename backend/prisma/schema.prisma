@@ -300,6 +300,8 @@ model Skill {
   jobSkills               JobSkill[]
   skillGaps               SkillGap[]
   marketJobSkills         MarketJobSkill[]
+  candidatesSuggested     SkillCandidate[] @relation("SkillCandidateSuggested")
+  candidatesResolved      SkillCandidate[] @relation("SkillCandidateResolved")
 
   @@index([category])
   @@index([normalizedName])
@@ -508,6 +510,8 @@ model Career {
   goals                   CareerGoal[]
   roadmaps                Roadmap[]
   ingestJobs              IngestCareerJob[]
+  marketProfile           MarketCareerProfile?
+  marketJobs              MarketJobCareer[]
 
   @@index([slug])
   @@map("career")
@@ -1381,13 +1385,18 @@ model MarketJob {
   primaryRawJobId    String?
   sourceCount        Int                   @default(1)
   normalizerVersion  String
+  classificationStatus MarketClassificationStatus @default(PENDING)
+  classifierVersion  String?
+  classifiedAt       DateTime?
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
 
   company            Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
   rawJobs            MarketRawJob[]
   skills             MarketJobSkill[]
+  careers            MarketJobCareer[]
 
+  @@index([classificationStatus])
   @@index([companyId, normalizedTitle])
   @@index([status, lastSeenAt])
   @@index([firstSeenAt])
@@ -1430,4 +1439,92 @@ model MarketJobSkill {
   @@index([marketJobId])
   @@index([normalizedName])
   @@map("market_job_skill")
+}
+
+enum SkillCandidateStatus {
+  PENDING
+  APPROVED
+  MAPPED
+  REJECTED
+  MERGED
+}
+
+/// A skill name seen in postings that no Skill or approved alias resolves. Counts are recomputed, never incremented.
+model SkillCandidate {
+  id               String               @id @default(cuid())
+  name             String
+  normalizedName   String               @unique
+  status           SkillCandidateStatus @default(PENDING)
+  jobCount         Int                  @default(0)
+  companyCount     Int                  @default(0)
+  firstSeenAt      DateTime
+  lastSeenAt       DateTime
+  suggestedSkillId String?
+  /// EMBEDDING | LLM
+  suggestionMethod String?
+  suggestionScore  Float?
+  resolvedSkillId  String?
+  autoApproved     Boolean              @default(false)
+  reviewedBy       String?
+  reviewedAt       DateTime?
+  note             String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  suggestedSkill   Skill?               @relation("SkillCandidateSuggested", fields: [suggestedSkillId], references: [id], onDelete: SetNull)
+  resolvedSkill    Skill?               @relation("SkillCandidateResolved", fields: [resolvedSkillId], references: [id], onDelete: SetNull)
+
+  @@index([status, jobCount])
+  @@map("skill_candidate")
+}
+
+enum MarketClassificationStatus {
+  PENDING
+  CLASSIFIED
+  UNCLASSIFIED
+}
+
+enum MarketClassifyMethod {
+  TITLE_PATTERN
+  SKILL_OVERLAP
+  LLM
+  ADMIN
+}
+
+/// Market-side settings for a career, kept off the Career row so existing career responses are unchanged.
+model MarketCareerProfile {
+  id              String   @id @default(cuid())
+  careerId        String   @unique
+  /// Plain phrases matched on word boundaries against the normalized job title.
+  titlePatterns   String[] @default([])
+  excludePatterns String[] @default([])
+  enabled         Boolean  @default(true)
+  updatedBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  career          Career   @relation(fields: [careerId], references: [id], onDelete: Cascade)
+
+  @@map("market_career_profile")
+}
+
+/// Which career (and lane) a market job counts toward. laneKey "all" keeps the unique key free of NULLs.
+model MarketJobCareer {
+  id                String               @id @default(cuid())
+  marketJobId       String
+  careerId          String
+  laneKey           String               @default("all")
+  confidence        Float
+  method            MarketClassifyMethod
+  isPrimary         Boolean              @default(false)
+  matchedPattern    String?
+  classifierVersion String
+  createdAt         DateTime             @default(now())
+
+  marketJob         MarketJob            @relation(fields: [marketJobId], references: [id], onDelete: Cascade)
+  career            Career               @relation(fields: [careerId], references: [id], onDelete: Cascade)
+
+  @@unique([marketJobId, careerId, laneKey])
+  @@index([careerId, laneKey])
+  @@map("market_job_career")
 }

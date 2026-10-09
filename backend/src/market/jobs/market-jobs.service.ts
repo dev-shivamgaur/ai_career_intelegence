@@ -94,6 +94,37 @@ export class MarketJobsService {
             source: { select: { id: true, type: true, boardToken: true } },
           },
         },
+        skills: {
+          orderBy: [{ level: 'asc' }, { normalizedName: 'asc' }],
+          select: {
+            rawJobId: true,
+            rawName: true,
+            normalizedName: true,
+            skillId: true,
+            resolveMethod: true,
+            level: true,
+            confidence: true,
+            method: true,
+            evidence: true,
+            evidenceStart: true,
+            evidenceEnd: true,
+            yearsRequired: true,
+            extractorVersion: true,
+            skill: { select: { name: true } },
+          },
+        },
+        careers: {
+          select: {
+            careerId: true,
+            laneKey: true,
+            confidence: true,
+            method: true,
+            isPrimary: true,
+            matchedPattern: true,
+            classifierVersion: true,
+            career: { select: { title: true, slug: true } },
+          },
+        },
       },
     });
   }

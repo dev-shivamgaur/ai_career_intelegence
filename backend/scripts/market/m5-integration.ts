@@ -6,6 +6,7 @@
 import { PrismaClient } from '../../src/prisma/client';
 import { INTEL_DEFAULTS } from '../../src/intel-config/intel-config.defaults';
 import type { RawJobPayload } from '../../src/market/connectors/source-connector';
+import { SkillCandidateService } from '../../src/market/candidates/skill-candidate.service';
 import { ExtractStage } from '../../src/market/extract/extract.stage';
 import { MarketLlmExtractor } from '../../src/market/extract/market-llm-extractor.service';
 import { MarketFetchService } from '../../src/market/ingest/market-fetch.service';
@@ -100,7 +101,7 @@ async function main() {
   const resolver = new SkillResolverService(prisma as never);
   const extractor = new MarketLlmExtractor(llm as never, redis as never, config as never);
   new DedupeStage(prisma as never, config as never, pipeline).onModuleInit();
-  new ExtractStage(prisma as never, config as never, resolver, extractor, pipeline, retention).onModuleInit();
+  new ExtractStage(prisma as never, config as never, resolver, extractor, pipeline, retention, new SkillCandidateService(prisma as never)).onModuleInit();
   check('pipeline stages chain dedupe -> extract', pipeline.stageNames().join(',') === 'dedupe:PENDING->DEDUPED,extract:DEDUPED->EXTRACTED', pipeline.stageNames());
 
   for (const name of ['PostgreSQL', 'TypeScript', 'Kafka', 'React']) {

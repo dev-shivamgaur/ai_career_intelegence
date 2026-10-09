@@ -37,11 +37,21 @@ export class MarketProcessService implements OnModuleInit {
     return this.orderedStages().map((s) => `${s.name}:${s.from}->${s.to}`);
   }
 
-  /** Resets rows so they run again from the first stage. Rows whose text was purged only redo dedupe/classify. */
-  async startReprocessRun(trigger: MarketTrigger, sourceIds: string[]) {
+  /**
+   * Resets rows so they run again. "all" restarts from the first stage (rows whose text was purged only redo
+   * dedupe/classify); "classify" re-runs classification only, e.g. after title patterns change.
+   */
+  async startReprocessRun(trigger: MarketTrigger, sourceIds: string[], from: 'all' | 'classify' = 'all') {
+    this.publisher.assertCanRun();
     await this.prisma.marketRawJob.updateMany({
-      where: { sourceId: { in: sourceIds }, processingStatus: { not: MarketProcessingStatus.PENDING } },
-      data: { processingStatus: MarketProcessingStatus.PENDING, processingError: null },
+      where:
+        from === 'all'
+          ? { sourceId: { in: sourceIds }, processingStatus: { not: MarketProcessingStatus.PENDING } }
+          : { sourceId: { in: sourceIds }, processingStatus: MarketProcessingStatus.DONE },
+      data: {
+        processingStatus: from === 'all' ? MarketProcessingStatus.PENDING : MarketProcessingStatus.EXTRACTED,
+        processingError: null,
+      },
     });
     return this.publisher.startRun(
       'PROCESS',

@@ -63,6 +63,9 @@ const AdminMarketSourcesPage = lazy(() =>
 const AdminMarketRunsPage = lazy(() =>
   import("@/pages/Admin/AdminMarketRunsPage").then((m) => ({ default: m.AdminMarketRunsPage })),
 );
+const AdminMarketSlicePage = lazy(() =>
+  import("@/pages/Admin/AdminMarketSlicePage").then((m) => ({ default: m.AdminMarketSlicePage })),
+);
 
 function withSuspense(element: ReactNode) {
   return <Suspense fallback={<RouteFallback />}>{element}</Suspense>;
@@ -120,6 +123,7 @@ const router = createBrowserRouter([
           { path: "/admin/opportunities", element: withSuspense(<AdminOpportunitiesPage />) },
           { path: "/admin/market/sources", element: withSuspense(<AdminMarketSourcesPage />) },
           { path: "/admin/market/runs", element: withSuspense(<AdminMarketRunsPage />) },
+          { path: "/admin/market/slice", element: withSuspense(<AdminMarketSlicePage />) },
         ],
       },
     ],

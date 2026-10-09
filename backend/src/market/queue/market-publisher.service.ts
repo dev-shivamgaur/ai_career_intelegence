@@ -22,13 +22,18 @@ export class MarketPublisher {
     private readonly runs: MarketRunService,
   ) {}
 
-  async startRun(kind: MarketRunKind, trigger: MarketTrigger, items: TaskInput[], windowKey?: string) {
+  /** Throws unless a run could be published now. Call before side effects that only make sense with a run. */
+  assertCanRun() {
     if (!marketFlags.pipeline()) {
       throw new ConflictException({ error: 'MARKET_PIPELINE_DISABLED', message: 'Set MARKET_PIPELINE_ENABLED=true to run the market pipeline' });
     }
     if (!this.rabbit.isReady()) {
       throw new ServiceUnavailableException({ error: 'MARKET_QUEUE_UNAVAILABLE', message: 'Market queue is not connected' });
     }
+  }
+
+  async startRun(kind: MarketRunKind, trigger: MarketTrigger, items: TaskInput[], windowKey?: string) {
+    this.assertCanRun();
     const { run, tasks } = await this.runs.createRun(kind, trigger, items, windowKey);
     if (!tasks.length) {
       await this.runs.refreshRun(run.id);

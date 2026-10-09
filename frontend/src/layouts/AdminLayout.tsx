@@ -3,6 +3,7 @@ import { useAuth, useTheme } from "@/store/hooks";
 import {
   HiOutlineBriefcase,
   HiOutlineCollection,
+  HiOutlineGlobe,
   HiOutlineLogout,
   HiOutlineMoon,
   HiOutlineOfficeBuilding,
@@ -20,6 +21,7 @@ const links = [
   { to: "/admin/jobs", label: "Jobs", icon: HiOutlineOfficeBuilding },
   { to: "/admin/exams", label: "Exams", icon: HiOutlineCollection },
   { to: "/admin/opportunities", label: "Vacancies", icon: HiOutlineBriefcase },
+  { to: "/admin/market/sources", label: "Market sources", icon: HiOutlineGlobe },
 ];
 
 export function AdminLayout() {

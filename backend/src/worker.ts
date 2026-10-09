@@ -8,6 +8,8 @@ import { AppModule } from './app.module';
  */
 async function bootstrap() {
   process.env.INGEST_WORKER = '1';
+  // WORKER_QUEUES defaults to "career" (unchanged behavior); listing "market" also starts the market consumer.
+  if ((process.env.WORKER_QUEUES ?? 'career').split(',').map((q) => q.trim()).includes('market')) process.env.MARKET_WORKER = '1';
   const app = await NestFactory.createApplicationContext(AppModule);
   app.enableShutdownHooks();
 }

@@ -1,0 +1,36 @@
+{
+  "apiVersion": "1",
+  "jobs": [
+    {
+      "id": "7f3e1a2b-1111-4222-8333-444455556666",
+      "title": "Full Stack Engineer",
+      "department": "Engineering",
+      "team": "Product",
+      "employmentType": "FullTime",
+      "location": "Hyderabad",
+      "secondaryLocations": [],
+      "isRemote": false,
+      "workplaceType": "OnSite",
+      "isListed": true,
+      "publishedAt": "2026-09-15T05:30:00.000+00:00",
+      "jobUrl": "https://jobs.ashbyhq.com/exampleashby/7f3e1a2b-1111-4222-8333-444455556666",
+      "applyUrl": "https://jobs.ashbyhq.com/exampleashby/7f3e1a2b-1111-4222-8333-444455556666/application",
+      "descriptionHtml": "<p><strong>Must have</strong></p><ul><li>React</li><li>Node.js</li></ul><p><strong>Preferred</strong></p><ul><li>GraphQL</li></ul>",
+      "descriptionPlain": "Must have React Node.js Preferred GraphQL"
+    },
+    {
+      "id": "7f3e1a2b-1111-4222-8333-000000000000",
+      "title": "Unlisted Role",
+      "isListed": false,
+      "descriptionPlain": "hidden"
+    },
+    {
+      "id": "7f3e1a2b-1111-4222-8333-777777777777",
+      "title": "DevOps Engineer",
+      "isRemote": true,
+      "location": "India",
+      "isListed": true,
+      "descriptionPlain": "Kubernetes and Terraform."
+    }
+  ]
+}

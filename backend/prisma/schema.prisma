@@ -1111,3 +1111,165 @@ model IngestJobStep {
   @@index([jobId])
   @@map("ingest_job_step")
 }
+
+// ---------------------------------------------------------------------------
+// Market Intelligence (additive). Separate from the curated Job / JobSkill catalog.
+// ---------------------------------------------------------------------------
+
+enum MarketSourceType {
+  GREENHOUSE
+  LEVER
+  ASHBY
+}
+
+/// What learners may see from a source. Raw text is always admin-only.
+enum MarketDisplayPolicy {
+  SNIPPET_AND_LINK
+  LINK_ONLY
+  NONE
+}
+
+/// robots.txt is a crawl-policy signal only. UNKNOWN (missing or unreachable) is never treated as permission.
+enum RobotsStatus {
+  ALLOWED
+  DISALLOWED
+  UNKNOWN
+}
+
+enum MarketRunKind {
+  FETCH
+  PROCESS
+  AGGREGATE
+  RETENTION
+}
+
+enum MarketTrigger {
+  SCHEDULER
+  ADMIN
+}
+
+enum MarketRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  PARTIAL_FAILED
+  FAILED
+}
+
+enum MarketTaskStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+/// Admin-curated employer. One company can have boards on several ATS providers.
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  website   String?
+  country   String?
+  notes     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sources   MarketSource[]
+
+  @@map("company")
+}
+
+/// One public ATS board. Cannot be enabled without a recorded, unexpired terms review.
+model MarketSource {
+  id                       String              @id @default(cuid())
+  companyId                String
+  type                     MarketSourceType
+  boardToken               String
+  label                    String?
+  enabled                  Boolean             @default(false)
+  crawlIntervalHours       Int                 @default(24)
+
+  termsUrl                 String?
+  termsReviewedAt          DateTime?
+  termsReviewedBy          String?
+  termsSummary             String?
+  /// ANALYTICS_AGGREGATE | DISPLAY_SNIPPET | DISPLAY_LINK_ONLY
+  allowedUses              String[]            @default([])
+  attributionRequired      Boolean             @default(false)
+  termsReviewDueAt         DateTime?
+
+  storeRawPayload          Boolean             @default(false)
+  rawPayloadRetentionDays  Int?
+  descriptionRetentionDays Int?
+  evidenceExcerptMaxChars  Int?
+  displayPolicy            MarketDisplayPolicy @default(LINK_ONLY)
+
+  robotsStatus             RobotsStatus        @default(UNKNOWN)
+  robotsCheckedAt          DateTime?
+  lastFetchAt              DateTime?
+  lastSuccessAt            DateTime?
+  lastError                String?
+  consecutiveFailures      Int                 @default(0)
+  pausedReason             String?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+
+  company                  Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tasks                    MarketTask[]
+
+  @@unique([type, boardToken])
+  @@index([companyId])
+  @@index([enabled])
+  @@map("market_source")
+}
+
+/// One fan-out batch (fetch, process, aggregate or retention). Mirrors IngestRun without touching it.
+model MarketRun {
+  id             String          @id @default(cuid())
+  kind           MarketRunKind
+  trigger        MarketTrigger
+  status         MarketRunStatus @default(QUEUED)
+  /// Scheduler window key, e.g. "2026-10-09-fetch". Authoritative dedupe because Redis may be in-memory.
+  windowKey      String?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  totalTasks     Int             @default(0)
+  completedTasks Int             @default(0)
+  failedTasks    Int             @default(0)
+  counters       Json?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  tasks          MarketTask[]
+
+  @@index([kind, createdAt])
+  @@index([windowKey])
+  @@map("market_run")
+}
+
+/// One queue message. taskId makes redelivery idempotent.
+model MarketTask {
+  id         String           @id @default(cuid())
+  runId      String
+  kind       MarketRunKind
+  sourceId   String?
+  careerId   String?
+  status     MarketTaskStatus @default(QUEUED)
+  attempts   Int              @default(0)
+  startedAt  DateTime?
+  finishedAt DateTime?
+  durationMs Int?
+  error      String?
+  counters   Json?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  run        MarketRun        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  source     MarketSource?    @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  @@index([runId])
+  @@index([sourceId, createdAt])
+  @@map("market_task")
+}

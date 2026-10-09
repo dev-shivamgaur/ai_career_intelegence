@@ -1,0 +1,29 @@
+{
+  "jobs": [
+    {
+      "id": 4012345,
+      "internal_job_id": 300001,
+      "title": "Senior Backend Engineer (Node.js)",
+      "updated_at": "2026-09-30T10:15:00-04:00",
+      "first_published": "2026-09-01T09:00:00-04:00",
+      "requisition_id": "ENG-101",
+      "location": { "name": "Bengaluru, India" },
+      "absolute_url": "https://boards.greenhouse.io/examplecorp/jobs/4012345",
+      "departments": [{ "id": 1, "name": "Engineering" }],
+      "offices": [{ "id": 2, "name": "Bengaluru" }],
+      "metadata": null,
+      "content": "&lt;p&gt;We build payments APIs.&lt;/p&gt;&lt;h3&gt;Requirements&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;5+ years with Node.js and TypeScript&lt;/li&gt;&lt;li&gt;PostgreSQL &amp;amp; Redis&lt;/li&gt;&lt;/ul&gt;&lt;h3&gt;Nice to have&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;Kafka&lt;/li&gt;&lt;/ul&gt;"
+    },
+    {
+      "id": 4012346,
+      "title": "Frontend Engineer",
+      "updated_at": "2026-09-28T08:00:00-04:00",
+      "location": { "name": "Remote - India" },
+      "absolute_url": "https://boards.greenhouse.io/examplecorp/jobs/4012346",
+      "departments": [],
+      "content": "&lt;p&gt;React, TypeScript, CSS.&lt;/p&gt;"
+    },
+    { "id": 4012347, "title": "   ", "content": "" }
+  ],
+  "meta": { "total": 3 }
+}

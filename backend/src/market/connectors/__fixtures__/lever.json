@@ -1,0 +1,29 @@
+[
+  {
+    "id": "a1b2c3d4-0000-4000-8000-000000000001",
+    "text": "Backend Developer - Java",
+    "createdAt": 1756713600000,
+    "hostedUrl": "https://jobs.lever.co/examplelever/a1b2c3d4-0000-4000-8000-000000000001",
+    "applyUrl": "https://jobs.lever.co/examplelever/a1b2c3d4-0000-4000-8000-000000000001/apply",
+    "workplaceType": "hybrid",
+    "categories": { "location": "Pune, India", "team": "Platform", "commitment": "Full-time", "allLocations": ["Pune, India"] },
+    "description": "<div>Join our platform team.</div>",
+    "descriptionPlain": "Join our platform team.",
+    "lists": [
+      { "text": "What you need", "content": "<li>Java 17 and Spring Boot</li><li>REST APIs</li>" },
+      { "text": "Bonus points", "content": "<li>Docker</li>" }
+    ],
+    "additional": "<div>We offer health insurance.</div>",
+    "additionalPlain": "We offer health insurance."
+  },
+  {
+    "id": "a1b2c3d4-0000-4000-8000-000000000002",
+    "text": "Data Analyst",
+    "createdAt": 1756800000000,
+    "hostedUrl": "https://jobs.lever.co/examplelever/a1b2c3d4-0000-4000-8000-000000000002",
+    "workplaceType": "remote",
+    "categories": { "location": "Remote", "department": "Analytics" },
+    "description": "<p>SQL and Python.</p>",
+    "lists": []
+  }
+]

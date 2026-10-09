@@ -1,12 +1,24 @@
 import { normalizeTitle } from '../normalize/normalizers';
 import { evaluateSample, gateVerdict, GATE_TARGETS } from '../slice/quality-gate';
-import { SUGGESTED_PATTERNS, classifyTitle, normalizePattern, type CareerPatterns } from './title-classifier';
+import { isAmbiguous, matchLanes, scoreCareers, type CareerModel } from './career-scorer';
+import { SUGGESTED_PATTERNS, normalizePattern } from './title-classifier';
 
-const careers: CareerPatterns[] = Object.entries(SUGGESTED_PATTERNS).map(([slug, p]) => ({ careerId: slug, ...p }));
-const classify = (title: string) => classifyTitle(title, normalizeTitle(title), careers);
-const ids = (title: string) => classify(title).map((m) => m.careerId).sort();
+const W = { titleWeight: 0.7, skillOverlapWeight: 0.3 };
+const careers: CareerModel[] = Object.entries(SUGGESTED_PATTERNS).map(([slug, p]) => ({
+  careerId: slug,
+  slug,
+  ...p,
+  skillIds: new Set<string>(),
+  lanes: [],
+}));
+const job = (title: string, skills: Array<{ skillId: string | null; name: string }> = []) => ({ title, normalizedTitle: normalizeTitle(title), skills });
+const ids = (title: string) =>
+  scoreCareers(job(title), careers, W)
+    .filter((s) => s.confidence >= 0.6)
+    .map((s) => s.careerId)
+    .sort();
 
-describe('classifyTitle', () => {
+describe('scoreCareers: title patterns', () => {
   it.each([
     ['Senior Back-End Developer (Node.js)', ['backend']],
     ['Software Engineer, Backend', ['backend']],
@@ -23,26 +35,59 @@ describe('classifyTitle', () => {
   it.each(['Engineering Manager, Backend', 'Head of Frontend', 'Product Designer, Frontend', 'Account Executive', 'Data Scientist', 'Software Engineer'])(
     '%s stays unclassified',
     (title) => {
-      expect(classify(title)).toEqual([]);
+      expect(ids(title)).toEqual([]);
     },
   );
 
   it('does not match inside words', () => {
-    expect(classifyTitle('Backendless Evangelist', 'backendless evangelist', careers)).toEqual([]);
-  });
-
-  it('marks exactly one primary, the longest matching pattern', () => {
-    const custom: CareerPatterns[] = [
-      { careerId: 'a', titlePatterns: ['engineer'], excludePatterns: [] },
-      { careerId: 'b', titlePatterns: ['backend engineer'], excludePatterns: [] },
-    ];
-    const res = classifyTitle('Backend Engineer', 'backend engineer', custom);
-    expect(res.filter((m) => m.isPrimary).map((m) => m.careerId)).toEqual(['b']);
+    expect(scoreCareers({ title: 'Backendless Evangelist', normalizedTitle: 'backendless evangelist', skills: [] }, careers, W)).toEqual([]);
   });
 
   it('normalizes patterns like titles', () => {
     expect(normalizePattern('Back-End Developer')).toBe('backend engineer');
     expect(normalizePattern('Senior')).toBe('');
+  });
+});
+
+describe('scoreCareers: skill overlap and ambiguity', () => {
+  const backend: CareerModel = {
+    careerId: 'b',
+    slug: 'backend',
+    titlePatterns: ['backend'],
+    excludePatterns: [],
+    skillIds: new Set(['pg', 'node', 'docker', 'rest']),
+    lanes: [
+      { id: 'javascript', label: 'JS', keywords: ['node', 'node.js', 'express'], syllabusSlug: '' },
+      { id: 'go', label: 'Go', keywords: ['go', 'golang'], syllabusSlug: '' },
+    ],
+  };
+  const backendSkills = [
+    { skillId: 'pg', name: 'PostgreSQL' },
+    { skillId: 'node', name: 'Node.js' },
+    { skillId: 'docker', name: 'Docker' },
+    { skillId: 'k8s', name: 'Kubernetes' },
+  ];
+
+  it('title match plus overlap raises confidence; overlap needs enough resolved skills', () => {
+    const [s] = scoreCareers(job('Backend Engineer', backendSkills), [backend], W);
+    expect(s).toMatchObject({ method: 'TITLE_PATTERN', overlap: 0.75, confidence: 0.925 });
+    const [few] = scoreCareers(job('Backend Engineer', backendSkills.slice(0, 2)), [backend], W);
+    expect(few).toMatchObject({ overlap: null, confidence: 0.7 });
+  });
+
+  it('a generic title with strong overlap is a low-confidence candidate and ambiguous (LLM may decide)', () => {
+    const scores = scoreCareers(job('Software Engineer', backendSkills), [backend], W);
+    expect(scores[0]).toMatchObject({ method: 'SKILL_OVERLAP', confidence: 0.225 });
+    expect(isAmbiguous(scores, 0.6)).toBe(true);
+    expect(isAmbiguous(scoreCareers(job('Backend Engineer', backendSkills), [backend], W), 0.6)).toBe(false);
+    expect(scoreCareers(job('Software Engineer', [{ skillId: 'x', name: 'X' }, { skillId: 'y', name: 'Y' }, { skillId: 'z', name: 'Z' }]), [backend], W)).toEqual([]);
+  });
+
+  it('lanes: whole-word keywords in title and skills, best lane wins', () => {
+    expect(scoreCareers(job('Backend Engineer (Node.js)', backendSkills), [backend], W)[0].lanes).toEqual(['javascript']);
+    expect(matchLanes('Backend Engineer', ['Go', 'PostgreSQL'], backend.lanes)).toEqual(['go']);
+    expect(matchLanes('Backend Engineer, Google Cloud', ['PostgreSQL'], backend.lanes)).toEqual([]);
+    expect(matchLanes('Golang Backend Engineer', ['Node.js'], backend.lanes)).toEqual(['go']);
   });
 });
 

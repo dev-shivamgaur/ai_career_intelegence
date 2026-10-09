@@ -56,13 +56,13 @@ export class MarketSliceController {
   }
 
   @Get('slice/careers/:careerId/skills')
-  careerSkills(@Param('careerId') careerId: string, @Query('take') take?: string) {
-    return this.slice.careerSkills(careerId, take ? Number(take) : undefined);
+  careerSkills(@Param('careerId') careerId: string, @Query('take') take?: string, @Query('lane') lane?: string) {
+    return this.slice.careerSkills(careerId, take ? Number(take) : undefined, lane);
   }
 
   @Get('slice/careers/:careerId/skills/:key/jobs')
-  skillJobs(@Param('careerId') careerId: string, @Param('key') key: string, @Query('take') take?: string) {
-    return this.slice.skillJobs(careerId, key, take ? Number(take) : undefined);
+  skillJobs(@Param('careerId') careerId: string, @Param('key') key: string, @Query('take') take?: string, @Query('lane') lane?: string) {
+    return this.slice.skillJobs(careerId, key, take ? Number(take) : undefined, lane);
   }
 
   @Get('candidates')

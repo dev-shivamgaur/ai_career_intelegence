@@ -9,6 +9,7 @@
 import { writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { INTEL_DEFAULTS } from '../../src/intel-config/intel-config.defaults';
 import { PrismaClient } from '../../src/prisma/client';
 
 const args = process.argv.slice(2);
@@ -30,7 +31,10 @@ async function main() {
       sourceCount: true,
       primaryRawJobId: true,
       company: { select: { id: true, name: true } },
-      careers: { select: { career: { select: { slug: true } } } },
+      careers: {
+        where: { laneKey: 'all', confidence: { gte: Number(opt('--min-confidence', String(INTEL_DEFAULTS.demand.minClassificationConfidence))) } },
+        select: { career: { select: { slug: true } } },
+      },
       skills: { select: { rawName: true, normalizedName: true, level: true, skill: { select: { name: true } } } },
       rawJobs: { select: { id: true, url: true, rawDescription: true, source: { select: { type: true } } } },
     },

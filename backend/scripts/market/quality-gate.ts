@@ -3,9 +3,11 @@
  * Scores the current predictions against a hand-labelled file from export-label-sample.ts, then adds the live
  * unresolved-skill rate and the run of clean fetch runs. Exit code 0 = GO, 2 = FIX.
  *
- * Usage (from backend/): npx ts-node scripts/market/quality-gate.ts --file <labels.json>
+ * Usage (from backend/): npx ts-node scripts/market/quality-gate.ts --file <labels.json> [--min-confidence 0.6]
+ * Predicted careers are the whole-career assignments at or above the confidence that demand counts (M8 accept: ≥ 0.90 precision).
  */
 import { readFileSync } from 'fs';
+import { INTEL_DEFAULTS } from '../../src/intel-config/intel-config.defaults';
 import { PrismaClient } from '../../src/prisma/client';
 import { normalizeSkillName } from '../../src/skill-intel/skill-normalize';
 import { SkillResolverService } from '../../src/skill-intel/skill-resolver.service';
@@ -25,11 +27,13 @@ async function main() {
     return res.map((r, n) => r.skillId ?? `n:${normalizeSkillName(names[n])}`);
   };
 
+  const confArg = process.argv.indexOf('--min-confidence');
+  const minConf = confArg >= 0 ? Number(process.argv[confArg + 1]) : INTEL_DEFAULTS.demand.minClassificationConfidence;
   const jobs = await prisma.marketJob.findMany({
     where: { id: { in: labelled.map((x) => x.marketJobId) } },
     select: {
       id: true,
-      careers: { select: { career: { select: { slug: true } } } },
+      careers: { where: { laneKey: 'all', confidence: { gte: minConf } }, select: { career: { select: { slug: true } } } },
       skills: { select: { skillId: true, normalizedName: true } },
     },
   });

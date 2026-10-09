@@ -36,6 +36,7 @@ export class MarketSliceService {
 
   async summary() {
     const open = { status: MarketListingStatus.OPEN };
+    const minConf = await this.minClassificationConfidence();
     const [openJobs, byClass, careers, skillTotals, rawCount, linkedJobs, mergedJobs, byProcessing, purged, candidates, fetchRuns] =
       await Promise.all([
         this.prisma.marketJob.count({ where: open }),
@@ -43,7 +44,7 @@ export class MarketSliceService {
         this.prisma.$queryRaw<Array<{ careerId: string; jobCount: number; companyCount: number }>>`
           SELECT c."careerId", COUNT(DISTINCT j.id)::int AS "jobCount", COUNT(DISTINCT j."companyId")::int AS "companyCount"
           FROM "market_job_career" c JOIN "market_job" j ON j.id = c."marketJobId"
-          WHERE j.status = 'OPEN'
+          WHERE j.status = 'OPEN' AND c."laneKey" = 'all' AND c.confidence >= ${minConf}
           GROUP BY c."careerId"`,
         this.prisma.$queryRaw<Array<{ total: number; unresolved: number; unresolvedNames: number }>>`
           SELECT COUNT(*)::int AS total,
@@ -110,22 +111,30 @@ export class MarketSliceService {
     };
   }
 
-  /** Top skills of one career over its open jobs, strongest level per job counted once. */
-  async careerSkills(careerId: string, take = 50) {
+  private async minClassificationConfidence() {
+    return (await this.config.get('demand')).minClassificationConfidence;
+  }
+
+  /**
+   * Top skills of one career (or one of its lanes) over its open jobs, strongest level per job counted once.
+   * Only career assignments at or above demand.minClassificationConfidence count.
+   */
+  async careerSkills(careerId: string, take = 50, lane = 'all') {
     const career = await this.prisma.career.findUnique({ where: { id: careerId }, select: { id: true, title: true, slug: true } });
     if (!career) throw new NotFoundException({ error: 'CAREER_NOT_FOUND', message: 'Career not found' });
-    const { minSkillConfidence } = await this.config.get('demand');
+    const { minSkillConfidence, minClassificationConfidence: minConf } = await this.config.get('demand');
     const limit = Math.min(Math.max(take, 1), 200);
-    const [jobs, rows] = await Promise.all([
+    const laneKey = lane || 'all';
+    const [jobs, rows, lanes] = await Promise.all([
       this.prisma.$queryRaw<Array<{ jobCount: number; companyCount: number }>>`
         SELECT COUNT(DISTINCT j.id)::int AS "jobCount", COUNT(DISTINCT j."companyId")::int AS "companyCount"
         FROM "market_job_career" c JOIN "market_job" j ON j.id = c."marketJobId"
-        WHERE c."careerId" = ${careerId} AND j.status = 'OPEN'`,
+        WHERE c."careerId" = ${careerId} AND c."laneKey" = ${laneKey} AND c.confidence >= ${minConf} AND j.status = 'OPEN'`,
       this.prisma.$queryRaw<SkillRow[]>`
         WITH jobs AS (
           SELECT DISTINCT j.id, j."companyId"
           FROM "market_job_career" c JOIN "market_job" j ON j.id = c."marketJobId"
-          WHERE c."careerId" = ${careerId} AND j.status = 'OPEN'
+          WHERE c."careerId" = ${careerId} AND c."laneKey" = ${laneKey} AND c.confidence >= ${minConf} AND j.status = 'OPEN'
         ),
         per_job AS (
           SELECT s."marketJobId", jobs."companyId",
@@ -146,6 +155,11 @@ export class MarketSliceService {
         GROUP BY key
         ORDER BY "jobCount" DESC, key
         LIMIT ${limit}`,
+      this.prisma.$queryRaw<Array<{ laneKey: string; jobCount: number }>>`
+        SELECT c."laneKey", COUNT(DISTINCT j.id)::int AS "jobCount"
+        FROM "market_job_career" c JOIN "market_job" j ON j.id = c."marketJobId"
+        WHERE c."careerId" = ${careerId} AND c."laneKey" <> 'all' AND c.confidence >= ${minConf} AND j.status = 'OPEN'
+        GROUP BY c."laneKey" ORDER BY "jobCount" DESC, c."laneKey"`,
     ]);
     const skillIds = rows.map((r) => r.skillId).filter((id): id is string => !!id);
     const skills = await this.prisma.skill.findMany({ where: { id: { in: skillIds } }, select: { id: true, name: true } });
@@ -153,6 +167,9 @@ export class MarketSliceService {
     return {
       basis: SLICE_BASIS,
       career,
+      lane: laneKey,
+      lanes,
+      minClassificationConfidence: minConf,
       jobCount: jobs[0]?.jobCount ?? 0,
       companyCount: jobs[0]?.companyCount ?? 0,
       skills: rows.map((r) => ({
@@ -170,11 +187,16 @@ export class MarketSliceService {
   }
 
   /** Open jobs of a career that ask for one skill, each with its source postings and evidence excerpts. */
-  async skillJobs(careerId: string, key: string, take = 50) {
+  async skillJobs(careerId: string, key: string, take = 50, lane = 'all') {
     if (!key) throw new BadRequestException({ error: 'SKILL_KEY_REQUIRED', message: 'Skill key is required' });
     const skillWhere = parseKey(key);
+    const minConf = await this.minClassificationConfidence();
     const jobs = await this.prisma.marketJob.findMany({
-      where: { status: MarketListingStatus.OPEN, careers: { some: { careerId } }, skills: { some: skillWhere } },
+      where: {
+        status: MarketListingStatus.OPEN,
+        careers: { some: { careerId, laneKey: lane || 'all', confidence: { gte: minConf } } },
+        skills: { some: skillWhere },
+      },
       orderBy: { firstSeenAt: 'desc' },
       take: Math.min(Math.max(take, 1), 200),
       select: {
@@ -185,7 +207,7 @@ export class MarketSliceService {
         firstSeenAt: true,
         sourceCount: true,
         company: { select: { id: true, name: true } },
-        careers: { where: { careerId }, select: { method: true, matchedPattern: true, confidence: true } },
+        careers: { where: { careerId }, select: { laneKey: true, method: true, matchedPattern: true, confidence: true } },
         skills: {
           where: skillWhere,
           select: {
@@ -211,11 +233,12 @@ export class MarketSliceService {
         },
       },
     });
-    return { basis: SLICE_BASIS, careerId, key, jobs };
+    return { basis: SLICE_BASIS, careerId, key, lane: lane || 'all', jobs };
   }
 
   /** Careers with their market title patterns, the built-in suggestions and how many open jobs each currently has. */
   async careerProfiles() {
+    const minConf = await this.minClassificationConfidence();
     const [careers, counts, unclassified] = await Promise.all([
       this.prisma.career.findMany({
         where: { isCustom: false },
@@ -225,7 +248,7 @@ export class MarketSliceService {
       this.prisma.$queryRaw<Array<{ careerId: string; jobCount: number }>>`
         SELECT c."careerId", COUNT(DISTINCT j.id)::int AS "jobCount"
         FROM "market_job_career" c JOIN "market_job" j ON j.id = c."marketJobId"
-        WHERE j.status = 'OPEN' GROUP BY c."careerId"`,
+        WHERE j.status = 'OPEN' AND c."laneKey" = 'all' AND c.confidence >= ${minConf} GROUP BY c."careerId"`,
       this.prisma.marketJob.findMany({
         where: { status: MarketListingStatus.OPEN, classificationStatus: MarketClassificationStatus.UNCLASSIFIED },
         orderBy: { firstSeenAt: 'desc' },

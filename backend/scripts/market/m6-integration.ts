@@ -67,7 +67,7 @@ async function main() {
   const extractor = new MarketLlmExtractor(llm as never, {} as never, config as never);
   new DedupeStage(prisma as never, config as never, pipeline).onModuleInit();
   new ExtractStage(prisma as never, config as never, new SkillResolverService(prisma as never), extractor, pipeline, retention, candidates).onModuleInit();
-  new ClassifyStage(prisma as never, pipeline).onModuleInit();
+  new ClassifyStage(prisma as never, pipeline, config as never, { choose: async () => null } as never).onModuleInit();
   const slice = new MarketSliceService(prisma as never, config as never);
   check('stages chain dedupe -> extract -> classify', pipeline.stageNames().length === 3, pipeline.stageNames());
 

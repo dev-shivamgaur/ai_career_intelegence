@@ -104,11 +104,11 @@ export function AdminMarketSlicePage() {
     void candidates.reload();
   }
 
-  async function openCareer(careerId: string) {
+  async function openCareer(careerId: string, lane = "all") {
     try {
       setSkill(null);
       setSkillJobs(null);
-      setCareerSkills(await marketApi.getSliceCareerSkills(careerId));
+      setCareerSkills(await marketApi.getSliceCareerSkills(careerId, lane));
     } catch (err) {
       push(err instanceof Error ? err.message : "Could not load skills");
     }
@@ -118,7 +118,7 @@ export function AdminMarketSlicePage() {
     if (!careerSkills) return;
     try {
       setSkill(s);
-      setSkillJobs(await marketApi.getSliceSkillJobs(careerSkills.career.id, s.key));
+      setSkillJobs(await marketApi.getSliceSkillJobs(careerSkills.career.id, s.key, careerSkills.lane));
     } catch (err) {
       push(err instanceof Error ? err.message : "Could not load jobs");
     }
@@ -181,8 +181,24 @@ export function AdminMarketSlicePage() {
 
           {careerSkills && (
             <div className="overflow-x-auto">
+              {careerSkills.lanes.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {[{ laneKey: "all", jobCount: null as number | null }, ...careerSkills.lanes].map((l) => (
+                    <Button
+                      key={l.laneKey}
+                      size="sm"
+                      variant={careerSkills.lane === l.laneKey ? "primary" : "ghost"}
+                      onClick={() => void openCareer(careerSkills.career.id, l.laneKey)}
+                    >
+                      {l.laneKey === "all" ? "All lanes" : `${l.laneKey} · ${l.jobCount}`}
+                    </Button>
+                  ))}
+                </div>
+              )}
               <p className="mb-2 text-xs text-slate-500">
-                {careerSkills.career.title}: {careerSkills.jobCount} open jobs from {careerSkills.companyCount} companies. Each job counts once per skill, at its strongest level.
+                {careerSkills.career.title}
+                {careerSkills.lane !== "all" ? ` (${careerSkills.lane} lane)` : ""}: {careerSkills.jobCount} open jobs from {careerSkills.companyCount} companies. Each job
+                counts once per skill, at its strongest level. Only jobs classified with confidence ≥ {careerSkills.minClassificationConfidence} count.
               </p>
               <table className="w-full text-left text-sm">
                 <thead className="text-xs text-slate-500">
@@ -232,7 +248,17 @@ export function AdminMarketSlicePage() {
                     <p>
                       <span className="font-medium">{j.title}</span> · {j.company.name}
                       {j.locationText ? ` · ${j.locationText}` : ""}
-                      {j.careers[0]?.matchedPattern ? <span className="text-xs text-slate-500"> · matched “{j.careers[0].matchedPattern}”</span> : null}
+                      {(() => {
+                        const c = j.careers.find((x) => x.laneKey === "all") ?? j.careers[0];
+                        if (!c) return null;
+                        return (
+                          <span className="text-xs text-slate-500">
+                            {" "}
+                            · {c.method} {c.confidence.toFixed(2)}
+                            {c.matchedPattern ? ` · matched “${c.matchedPattern}”` : ""}
+                          </span>
+                        );
+                      })()}
                     </p>
                     {j.skills.map((e, i) => (
                       <div key={`${e.rawJob.id}-${i}`} className="ml-3 space-y-0.5 text-xs">

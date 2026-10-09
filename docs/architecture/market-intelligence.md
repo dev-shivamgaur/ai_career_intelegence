@@ -99,6 +99,20 @@ correction across skills of a career/lane, confirmation over consecutive steps, 
   target's row when both skills have an equivalent row, and writes `SkillReviewLog`.
 - `MARKET_LLM_EXTRACTION` additionally needs a configured LLM; the daily budget is
   `IntelConfig extraction.llmDailyLimit` (Redis counter `market:llm:<date>`).
+- Career classification (M8, `classifierVersion = career-2`): for each career with an enabled
+  profile, `confidence = titleWeight * [title pattern matches] + skillOverlapWeight * overlap`,
+  where overlap is the share of the job's resolved skills (confidence >= `demand.minSkillConfidence`)
+  that the career's `CareerSkillRequirement` rows contain; overlap is ignored below 3 resolved
+  skills. Exclusion patterns veto a career outright. Candidates (a title match, or overlap >= 0.5)
+  are all stored with their confidence; lanes (`Career.stackLanes` keywords, whole-word, title
+  weighted over skills) get their own rows (`laneKey = <lane id>`) only above
+  `classification.minConfidence`. A job is ambiguous when no candidate reaches the threshold but
+  some overlap is >= 0.5; only then, and only with `classification.llmFallback` on, a configured LLM
+  and the shared daily budget, the LLM chooses among those candidates (method `LLM`, confidence
+  capped at 0.85). Admin rows are never overwritten.
+- Every demand-facing query (slice summary, career skills, drill-down, profile counts, label
+  export, quality gate) counts only `laneKey = 'all'` rows with confidence >=
+  `demand.minClassificationConfidence`; lane views filter on the lane key instead.
 
 ## M6 vertical slice runbook and quality gate
 
@@ -118,3 +132,6 @@ correction across skills of a career/lane, confirmation over consecutive steps, 
    `VERDICT: GO|FIX`. Proposed targets (to confirm): extraction precision >= 0.85, recall >= 0.70,
    classification precision >= 0.90, 0 false merges, unresolved-skill rate < 20%, 3 consecutive
    clean daily fetch runs. Scale Gate A (about 25 companies) opens only on GO.
+7. M8 accept (classification precision >= 0.90) is checked with the same labelled file after
+   "Reclassify" has run with the career-2 classifier; predicted careers are the rows that demand
+   counts (`--min-confidence` overrides the default threshold for experiments).

@@ -6,6 +6,7 @@ import { SkillCandidateService } from './candidates/skill-candidate.service';
 import { SkillReviewController } from './candidates/skill-review.controller';
 import { SkillReviewService } from './candidates/skill-review.service';
 import { SkillSuggestService } from './candidates/skill-suggest.service';
+import { CareerLlmClassifier } from './classify/career-llm.service';
 import { ClassifyStage } from './classify/classify.stage';
 import { ConnectorRegistry } from './connectors/connector-registry';
 import { MarketHttpClient } from './http/market-http-client';
@@ -52,6 +53,7 @@ import { MarketSourcesService } from './sources/market-sources.service';
     SkillCandidateService,
     SkillReviewService,
     SkillSuggestService,
+    CareerLlmClassifier,
     ClassifyStage,
     MarketSliceService,
   ],

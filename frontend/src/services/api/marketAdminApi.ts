@@ -224,6 +224,9 @@ export interface SliceSkill {
 export interface SliceCareerSkills {
   basis: "ACTIVE_STOCK";
   career: { id: string; title: string; slug: string };
+  lane: string;
+  lanes: Array<{ laneKey: string; jobCount: number }>;
+  minClassificationConfidence: number;
   jobCount: number;
   companyCount: number;
   skills: SliceSkill[];
@@ -238,7 +241,7 @@ export interface SliceSkillJobs {
     firstSeenAt: string;
     sourceCount: number;
     company: { id: string; name: string };
-    careers: Array<{ method: string; matchedPattern: string | null; confidence: number }>;
+    careers: Array<{ laneKey: string; method: string; matchedPattern: string | null; confidence: number }>;
     skills: Array<{
       rawName: string;
       level: "REQUIRED" | "RECOMMENDED" | "NICE_TO_HAVE";
@@ -290,12 +293,12 @@ export function getSlice() {
   return http.get<SliceSummary>("/admin/market/slice");
 }
 
-export function getSliceCareerSkills(careerId: string) {
-  return http.get<SliceCareerSkills>(`/admin/market/slice/careers/${careerId}/skills`);
+export function getSliceCareerSkills(careerId: string, lane = "all") {
+  return http.get<SliceCareerSkills>(`/admin/market/slice/careers/${careerId}/skills?lane=${encodeURIComponent(lane)}`);
 }
 
-export function getSliceSkillJobs(careerId: string, key: string) {
-  return http.get<SliceSkillJobs>(`/admin/market/slice/careers/${careerId}/skills/${encodeURIComponent(key)}/jobs`);
+export function getSliceSkillJobs(careerId: string, key: string, lane = "all") {
+  return http.get<SliceSkillJobs>(`/admin/market/slice/careers/${careerId}/skills/${encodeURIComponent(key)}/jobs?lane=${encodeURIComponent(lane)}`);
 }
 
 export function getCareerProfiles() {

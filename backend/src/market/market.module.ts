@@ -3,6 +3,9 @@ import { AuthModule } from '../auth/auth.module';
 import { IntelConfigModule } from '../intel-config/intel-config.module';
 import { SkillIntelModule } from '../skill-intel/skill-intel.module';
 import { SkillCandidateService } from './candidates/skill-candidate.service';
+import { SkillReviewController } from './candidates/skill-review.controller';
+import { SkillReviewService } from './candidates/skill-review.service';
+import { SkillSuggestService } from './candidates/skill-suggest.service';
 import { ClassifyStage } from './classify/classify.stage';
 import { ConnectorRegistry } from './connectors/connector-registry';
 import { MarketHttpClient } from './http/market-http-client';
@@ -28,7 +31,7 @@ import { MarketSourcesService } from './sources/market-sources.service';
 
 @Module({
   imports: [AuthModule, IntelConfigModule, SkillIntelModule],
-  controllers: [MarketSourcesController, MarketRunsController, MarketJobsController, MarketSliceController],
+  controllers: [MarketSourcesController, MarketRunsController, MarketJobsController, MarketSliceController, SkillReviewController],
   providers: [
     MarketHttpClient,
     ConnectorRegistry,
@@ -47,6 +50,8 @@ import { MarketSourcesService } from './sources/market-sources.service';
     MarketLlmExtractor,
     ExtractStage,
     SkillCandidateService,
+    SkillReviewService,
+    SkillSuggestService,
     ClassifyStage,
     MarketSliceService,
   ],

@@ -34,6 +34,9 @@ export const INTEL_DEFAULTS = {
     autoApproveMinJobs: 5,
     autoApproveMinCompanies: 3,
     embeddingMinSimilarity: 0.9,
+    /** Ask the LLM to pick among the embedding shortlist when similarity is below the threshold. */
+    llmSuggest: false,
+    suggestShortlist: 5,
   },
   classification: {
     minConfidence: 0.6,

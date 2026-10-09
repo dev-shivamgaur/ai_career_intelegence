@@ -89,6 +89,14 @@ correction across skills of a career/lane, confirmation over consecutive steps, 
   section-aware levels) and an optional LLM pass whose quotes must be found verbatim in the text.
   Every `MarketJobSkill` stores an evidence span; the excerpt follows the source retention policy.
 - Unresolved names are upserted as `SkillCandidate` (counts recomputed, never incremented).
+- Skill review (M7, admin "Skill review" page): suggestions come from an in-memory embedding index of
+  skill names (`EmbeddingService`, no vector DB) and, when `IntelConfig resolver.llmSuggest` is on,
+  an LLM choice restricted to that shortlist. Auto-mapping (`resolver.autoApprove`) is off by default
+  and flags what it maps. Approve-as-new refuses names that already resolve, so market ingestion
+  never creates duplicate `Skill` rows. Map/approve relink pending `MarketJobSkill` rows in the same
+  transaction (bounded to one name); reject removes them and extraction drops the name afterwards.
+  The skill merge tool is a dry run unless `execute: true`, runs in one transaction, keeps the
+  target's row when both skills have an equivalent row, and writes `SkillReviewLog`.
 - `MARKET_LLM_EXTRACTION` additionally needs a configured LLM; the daily budget is
   `IntelConfig extraction.llmDailyLimit` (Redis counter `market:llm:<date>`).
 

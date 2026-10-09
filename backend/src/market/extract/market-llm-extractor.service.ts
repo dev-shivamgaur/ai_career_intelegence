@@ -23,6 +23,14 @@ const extractionSchema = z.object({
     .max(40),
 });
 
+/** Shared daily LLM budget for all market LLM calls. Returns false once today's limit is used up. */
+export async function takeLlmBudget(redis: Pick<RedisService, 'incr' | 'expire'>, dailyLimit: number): Promise<boolean> {
+  const key = `market:llm:${new Date().toISOString().slice(0, 10)}`;
+  const used = await redis.incr(key);
+  if (used === 1) await redis.expire(key, 2 * 24 * 3600);
+  return used <= dailyLimit;
+}
+
 export type LlmExtraction = { skills: LlmSkill[] } | { skipped: 'DISABLED' | 'NOT_CONFIGURED' | 'BUDGET' | 'ERROR'; error?: string };
 
 /** Optional semantic pass. Off unless MARKET_LLM_EXTRACTION is on; a daily Redis budget caps cost. */
@@ -44,11 +52,7 @@ export class MarketLlmExtractor {
     if (!marketFlags.llmExtraction()) return { skipped: 'DISABLED' };
     if (!this.llm.isConfigured()) return { skipped: 'NOT_CONFIGURED' };
     const cfg = await this.config.get('extraction');
-    const day = new Date().toISOString().slice(0, 10);
-    const key = `market:llm:${day}`;
-    const used = await this.redis.incr(key);
-    if (used === 1) await this.redis.expire(key, 2 * 24 * 3600);
-    if (used > cfg.llmDailyLimit) return { skipped: 'BUDGET' };
+    if (!(await takeLlmBudget(this.redis, cfg.llmDailyLimit))) return { skipped: 'BUDGET' };
     try {
       const result = await this.llm
         .chat({ temperature: 0 })

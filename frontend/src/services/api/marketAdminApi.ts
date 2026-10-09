@@ -282,6 +282,8 @@ export interface SkillCandidateRow {
   resolvedSkill: { id: string; name: string } | null;
   suggestionMethod: string | null;
   suggestionScore: number | null;
+  autoApproved: boolean;
+  note: string | null;
 }
 
 export function getSlice() {
@@ -314,6 +316,81 @@ export function listCandidates(status = "PENDING") {
   return http.get<{ total: number; counts: Record<string, number>; items: SkillCandidateRow[] }>(
     `/admin/market/candidates?status=${encodeURIComponent(status)}&take=100`,
   );
+}
+
+export interface SkillMergePlan {
+  source: { id: string; name: string };
+  target: { id: string; name: string };
+  moves: Record<string, number>;
+  conflicts: Record<string, number>;
+  aliasAdded: boolean;
+  executed: boolean;
+}
+
+export interface SkillAliasRow {
+  id: string;
+  alias: string;
+  normalizedAlias: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  source: string;
+  skill: { id: string; name: string };
+}
+
+export interface SkillReviewLogRow {
+  id: string;
+  action: string;
+  candidateId: string | null;
+  skillId: string | null;
+  targetSkillId: string | null;
+  actorId: string | null;
+  details: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export function suggestCandidates(limit = 25) {
+  return http.post<{ processed: number; suggested: number; autoMapped: number; skipped?: string }>("/admin/market/candidates/suggest", { limit });
+}
+
+export function mapCandidate(id: string, skillId: string) {
+  return http.post<{ relinked: number }>(`/admin/market/candidates/${id}/map`, { skillId });
+}
+
+export function approveCandidate(id: string, input: { name?: string; category?: string }) {
+  return http.post<{ relinked: number; skill: { id: string; name: string } }>(`/admin/market/candidates/${id}/approve`, input);
+}
+
+export function rejectCandidate(id: string, note?: string) {
+  return http.post<{ rowsRemoved: number }>(`/admin/market/candidates/${id}/reject`, { note });
+}
+
+export function reopenCandidate(id: string) {
+  return http.post(`/admin/market/candidates/${id}/reopen`, {});
+}
+
+export function listAliases(q?: string) {
+  return http.get<SkillAliasRow[]>(`/admin/market/aliases${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+}
+
+export function addAlias(skillId: string, alias: string) {
+  return http.post<{ relinked: number; candidatesMapped: number }>("/admin/market/aliases", { skillId, alias });
+}
+
+export function disableAlias(id: string) {
+  return http.post(`/admin/market/aliases/${id}/disable`, {});
+}
+
+export function listDuplicateSkills() {
+  return http.get<Array<{ key: string; skills: Array<{ id: string; name: string; category: string; createdAt: string }> }>>(
+    "/admin/market/skills/duplicates",
+  );
+}
+
+export function mergeSkills(sourceSkillId: string, targetSkillId: string, execute: boolean) {
+  return http.post<SkillMergePlan>("/admin/market/skills/merge", { sourceSkillId, targetSkillId, execute });
+}
+
+export function listReviewLog() {
+  return http.get<SkillReviewLogRow[]>("/admin/market/review-log");
 }
 
 export function purgeSource(id: string, mode: "policy" | "full") {

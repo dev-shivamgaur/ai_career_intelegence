@@ -295,7 +295,7 @@ export function AdminMarketSlicePage() {
       </Card>
 
       <Card>
-        <CardHeader title="Unresolved skill names" description="Read-only in the slice. Review actions (approve, alias, reject, merge) come with the skill review queue." />
+        <CardHeader title="Unresolved skill names" description="Read-only here. Approve, map, reject or merge them on the Skill review page." />
         <CardBody>
           {candidates.error && <p className="text-sm text-red-600">{candidates.error}</p>}
           <table className="w-full text-left text-sm">

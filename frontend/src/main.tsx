@@ -63,6 +63,9 @@ const AdminMarketSourcesPage = lazy(() =>
 const AdminMarketRunsPage = lazy(() =>
   import("@/pages/Admin/AdminMarketRunsPage").then((m) => ({ default: m.AdminMarketRunsPage })),
 );
+const AdminMarketSkillsPage = lazy(() =>
+  import("@/pages/Admin/AdminMarketSkillsPage").then((m) => ({ default: m.AdminMarketSkillsPage })),
+);
 const AdminMarketSlicePage = lazy(() =>
   import("@/pages/Admin/AdminMarketSlicePage").then((m) => ({ default: m.AdminMarketSlicePage })),
 );
@@ -124,6 +127,7 @@ const router = createBrowserRouter([
           { path: "/admin/market/sources", element: withSuspense(<AdminMarketSourcesPage />) },
           { path: "/admin/market/runs", element: withSuspense(<AdminMarketRunsPage />) },
           { path: "/admin/market/slice", element: withSuspense(<AdminMarketSlicePage />) },
+          { path: "/admin/market/skills", element: withSuspense(<AdminMarketSkillsPage />) },
         ],
       },
     ],

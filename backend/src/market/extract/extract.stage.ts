@@ -72,9 +72,17 @@ export class ExtractStage implements MarketStage, OnModuleInit {
 
     const names = [...new Set([...ruleHits.map((h) => h.name), ...llmSkills.map((s) => s.name)])];
     const resolved = new Map<string, SkillResolution>();
-    (await this.resolver.resolveMany(names)).forEach((r, i) => resolved.set(names[i], r));
+    const decisions = await this.decisions(ctx);
+    const rejected = new Set<string>();
+    (await this.resolver.resolveMany(names)).forEach((r, i) => {
+      const decision = r.skillId ? undefined : decisions.get(r.normalized);
+      if (decision === null) rejected.add(names[i]);
+      resolved.set(names[i], decision ? { ...r, skillId: decision, method: 'ALIAS', confidence: 0.9 } : r);
+    });
     const keyOf = (name: string) => resolved.get(name)?.skillId ?? `n:${normalizeSkillName(name)}`;
-    const merged = mergeHits(ruleHits, llmSkills, keyOf).filter((m) => m.confidence >= extraction.minSkillConfidence);
+    const merged = mergeHits(ruleHits, llmSkills, keyOf).filter(
+      (m) => m.confidence >= extraction.minSkillConfidence && !rejected.has(m.name),
+    );
     const version = usedLlm ? `${RULE_EXTRACTOR_VERSION}+${LLM_EXTRACTOR_VERSION}` : RULE_EXTRACTOR_VERSION;
 
     const rows = this.toRows(merged, resolved, text, excerptMax, row, version);
@@ -146,6 +154,24 @@ export class ExtractStage implements MarketStage, OnModuleInit {
     const matchers = buildMatchers(entries);
     ctx.cache.set(key, matchers);
     return matchers;
+  }
+
+  /** Reviewed candidates: normalized name -> mapped skill id, or null when rejected as not a skill. */
+  private async decisions(ctx: StageContext): Promise<Map<string, string | null>> {
+    const key = 'extract:decisions';
+    if (!ctx.cache.has(key)) {
+      const rows = await this.prisma.skillCandidate.findMany({
+        where: { status: { in: ['APPROVED', 'MAPPED', 'MERGED', 'REJECTED'] } },
+        select: { normalizedName: true, status: true, resolvedSkillId: true },
+      });
+      const map = new Map<string, string | null>();
+      for (const r of rows) {
+        if (r.status === 'REJECTED') map.set(r.normalizedName, null);
+        else if (r.resolvedSkillId) map.set(r.normalizedName, r.resolvedSkillId);
+      }
+      ctx.cache.set(key, map);
+    }
+    return ctx.cache.get(key) as Map<string, string | null>;
   }
 
   private async excerptLimit(sourceId: string, ctx: StageContext): Promise<number> {

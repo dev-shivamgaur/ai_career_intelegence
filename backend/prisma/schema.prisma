@@ -1478,6 +1478,23 @@ model SkillCandidate {
   @@map("skill_candidate")
 }
 
+/// Audit trail of skill review decisions and merges (who, what, before/after counts).
+model SkillReviewLog {
+  id            String   @id @default(cuid())
+  /// APPROVE_NEW | MAP_ALIAS | REJECT | REOPEN | AUTO_MAP | ADD_ALIAS | DISABLE_ALIAS | MERGE_SKILL
+  action        String
+  candidateId   String?
+  skillId       String?
+  targetSkillId String?
+  actorId       String?
+  details       Json?
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([candidateId])
+  @@map("skill_review_log")
+}
+
 enum MarketClassificationStatus {
   PENDING
   CLASSIFIED

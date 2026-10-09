@@ -29,7 +29,7 @@ export interface MarketSourceRow {
   allowedUses: MarketAllowedUse[];
   attributionRequired: boolean;
   termsReviewDueAt: string | null;
-  displayPolicy: "NONE" | "LINK_ONLY" | "SNIPPET";
+  displayPolicy: "NONE" | "LINK_ONLY" | "SNIPPET_AND_LINK";
   robotsStatus: RobotsStatus;
   robotsCheckedAt: string | null;
   lastFetchAt: string | null;
@@ -106,4 +106,87 @@ export function disableSource(id: string) {
 
 export function testFetch(id: string) {
   return http.post<TestFetchResult>(`/admin/market/sources/${id}/test-fetch`, {});
+}
+
+export type MarketRunKind = "FETCH" | "PROCESS" | "AGGREGATE" | "RETENTION";
+export type MarketRunStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "PARTIAL_FAILED" | "FAILED";
+
+export interface MarketRunRow {
+  id: string;
+  kind: MarketRunKind;
+  trigger: "SCHEDULER" | "ADMIN";
+  status: MarketRunStatus;
+  windowKey: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  totalTasks: number;
+  completedTasks: number;
+  failedTasks: number;
+  counters: Record<string, number> | null;
+  createdAt: string;
+}
+
+export interface MarketRunDetail extends MarketRunRow {
+  tasks: Array<{
+    id: string;
+    kind: MarketRunKind;
+    status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "SKIPPED";
+    attempts: number;
+    durationMs: number | null;
+    error: string | null;
+    counters: Record<string, unknown> | null;
+    source: { id: string; type: MarketSourceType; boardToken: string; company: { name: string } } | null;
+  }>;
+}
+
+export interface MarketHealth {
+  flags: { pipeline: boolean; scheduler: boolean; llmExtraction: boolean };
+  queueReady: boolean;
+  queues: Array<{ queue: string; messages: number; consumers: number }>;
+  sources: Array<{
+    id: string;
+    company: string;
+    type: MarketSourceType;
+    boardToken: string;
+    enabled: boolean;
+    pausedReason: string | null;
+    termsProblem: string | null;
+    fetchBlocker: string | null;
+    termsReviewDueAt: string | null;
+    robotsStatus: RobotsStatus;
+    lastFetchAt: string | null;
+    lastSuccessAt: string | null;
+    lastError: string | null;
+    consecutiveFailures: number;
+    listing: Record<string, number>;
+    processing: Record<string, number>;
+    contentPurged: number;
+  }>;
+}
+
+export function listRuns() {
+  return http.get<MarketRunRow[]>("/admin/market/runs");
+}
+
+export function getRun(id: string) {
+  return http.get<MarketRunDetail>(`/admin/market/runs/${id}`);
+}
+
+export function startFetchRun(selection: "due" | "all") {
+  return http.post<{ runId: string; taskCount: number }>("/admin/market/runs/fetch", { selection });
+}
+
+export function startRetentionRun() {
+  return http.post<{ runId: string; taskCount: number }>("/admin/market/runs/retention", {});
+}
+
+export function getHealth() {
+  return http.get<MarketHealth>("/admin/market/health");
+}
+
+export function purgeSource(id: string, mode: "policy" | "full") {
+  return http.post<{ descriptionsPurged: number; payloadsPurged: number; excerptsCleared: number }>(
+    `/admin/market/sources/${id}/purge`,
+    { mode },
+  );
 }

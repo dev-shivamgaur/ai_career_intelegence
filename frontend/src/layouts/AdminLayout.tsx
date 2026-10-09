@@ -7,6 +7,7 @@ import {
   HiOutlineLogout,
   HiOutlineMoon,
   HiOutlineOfficeBuilding,
+  HiOutlineRefresh,
   HiOutlineSun,
   HiOutlineUserGroup,
   HiOutlineViewGrid,
@@ -22,6 +23,7 @@ const links = [
   { to: "/admin/exams", label: "Exams", icon: HiOutlineCollection },
   { to: "/admin/opportunities", label: "Vacancies", icon: HiOutlineBriefcase },
   { to: "/admin/market/sources", label: "Market sources", icon: HiOutlineGlobe },
+  { to: "/admin/market/runs", label: "Market runs", icon: HiOutlineRefresh },
 ];
 
 export function AdminLayout() {

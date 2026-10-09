@@ -32,6 +32,24 @@ export class MarketRunService {
     });
   }
 
+  /** Adds a follow-up task (e.g. PROCESS after FETCH) to an existing run so the run tracks the whole batch. */
+  async addTask(runId: string, kind: MarketRunKind, task: NewTask) {
+    return this.prisma.$transaction(async (tx) => {
+      const created = await tx.marketTask.create({
+        data: { runId, kind, sourceId: task.sourceId ?? null, careerId: task.careerId ?? null },
+      });
+      await tx.marketRun.update({
+        where: { id: runId },
+        data: { totalTasks: { increment: 1 }, status: MarketRunStatus.RUNNING, finishedAt: null },
+      });
+      return created;
+    });
+  }
+
+  findRunInWindow(windowKey: string) {
+    return this.prisma.marketRun.findFirst({ where: { windowKey }, select: { id: true } });
+  }
+
   getTask(taskId: string) {
     return this.prisma.marketTask.findUnique({ where: { id: taskId } });
   }

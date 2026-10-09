@@ -50,4 +50,22 @@ export class MarketPublisher {
     }
     return { runId: run.id, taskCount: tasks.length };
   }
+
+  /** Called from a handler (worker) to continue the same run on another queue. */
+  async enqueueFollowUp(runId: string, kind: MarketRunKind, task: TaskInput) {
+    const created = await this.runs.addTask(runId, kind, task);
+    try {
+      this.rabbit.publish({
+        taskId: created.id,
+        runId,
+        queue: QUEUE_FOR_KIND[kind],
+        attempt: 1,
+        payload: { ...(task.payload ?? {}), sourceId: created.sourceId, careerId: created.careerId },
+      });
+    } catch (err) {
+      await this.runs.markDone(created.id, runId, 'FAILED', new Date(), { error: `Publish failed: ${(err as Error).message}` });
+      throw err;
+    }
+    return created.id;
+  }
 }

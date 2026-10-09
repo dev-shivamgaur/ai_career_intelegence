@@ -1218,6 +1218,7 @@ model MarketSource {
 
   company                  Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   tasks                    MarketTask[]
+  rawJobs                  MarketRawJob[]
 
   @@unique([type, boardToken])
   @@index([companyId])
@@ -1272,4 +1273,60 @@ model MarketTask {
   @@index([runId])
   @@index([sourceId, createdAt])
   @@map("market_task")
+}
+
+enum MarketListingStatus {
+  OPEN
+  CLOSED
+  STALE
+}
+
+/// Pipeline checkpoint. A retry resumes from the last completed stage.
+enum MarketProcessingStatus {
+  PENDING
+  NORMALIZED
+  DEDUPED
+  EXTRACTED
+  CLASSIFIED
+  DONE
+  SKIPPED
+  FAILED
+}
+
+/// One posting exactly as a board returned it. Raw text is admin-only and purged per the source retention policy;
+/// metadata, contentHash and downstream structured rows are kept.
+model MarketRawJob {
+  id                 String                 @id @default(cuid())
+  sourceId           String
+  externalId         String
+  rawTitle           String
+  rawLocation        String?
+  rawDescription     String?                @db.Text
+  rawPayload         Json?
+  rawPayloadStoredAt DateTime?
+  url                String?
+  department         String?
+  employmentType     String?
+  workplaceType      String?
+  contentHash        String
+  sourcePostedAt     DateTime?
+  sourceUpdatedAt    DateTime?
+  firstSeenAt        DateTime               @default(now())
+  lastSeenAt         DateTime               @default(now())
+  closedAt           DateTime?
+  listingStatus      MarketListingStatus    @default(OPEN)
+  processingStatus   MarketProcessingStatus @default(PENDING)
+  processorVersion   String?
+  processingError    String?
+  contentPurgedAt    DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  source             MarketSource           @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, externalId])
+  @@index([processingStatus])
+  @@index([sourceId, listingStatus])
+  @@index([lastSeenAt])
+  @@map("market_raw_job")
 }

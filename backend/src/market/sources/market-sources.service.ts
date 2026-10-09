@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { IntelConfigService } from '../../intel-config/intel-config.service';
 import { ConnectorRegistry } from '../connectors/connector-registry';
 import { MarketFetchError, MarketHttpClient } from '../http/market-http-client';
+import { MarketRetentionService } from '../retention/market-retention.service';
 import { MAX_TERMS_REVIEW_DAYS, effectiveRetention, fetchBlocker, termsReviewProblem } from './compliance';
 import type {
   CreateCompanyDto,
@@ -22,6 +23,7 @@ export class MarketSourcesService {
     private readonly connectors: ConnectorRegistry,
     private readonly http: MarketHttpClient,
     private readonly config: IntelConfigService,
+    private readonly retention: MarketRetentionService,
   ) {}
 
   listCompanies() {
@@ -110,7 +112,8 @@ export class MarketSourcesService {
       data.pausedReason = null;
     }
     const saved = await this.prisma.marketSource.update({ where: { id }, data });
-    return { ...saved, termsNarrowed: lostAnalytics };
+    const purged = lostAnalytics ? await this.retention.purgeSource(id, 'full') : null;
+    return { ...saved, termsNarrowed: lostAnalytics, purged };
   }
 
   async enable(id: string) {

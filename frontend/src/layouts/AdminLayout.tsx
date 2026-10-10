@@ -10,6 +10,7 @@ import {
   HiOutlineOfficeBuilding,
   HiOutlineRefresh,
   HiOutlineSun,
+  HiOutlineTrendingUp,
   HiOutlineUserGroup,
   HiOutlineViewGrid,
 } from "react-icons/hi";
@@ -27,6 +28,7 @@ const links = [
   { to: "/admin/market/runs", label: "Market runs", icon: HiOutlineRefresh },
   { to: "/admin/market/slice", label: "Market slice", icon: HiOutlineChartBar },
   { to: "/admin/market/skills", label: "Skill review", icon: HiOutlineCollection },
+  { to: "/admin/market/demand", label: "Market demand", icon: HiOutlineTrendingUp },
 ];
 
 export function AdminLayout() {

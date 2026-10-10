@@ -1545,3 +1545,93 @@ model MarketJobCareer {
   @@index([careerId, laneKey])
   @@map("market_job_career")
 }
+
+enum MarketPeriodType {
+  WEEK
+  MONTH
+}
+
+/// NEW_POSTINGS: firstSeenAt inside the period (trends). ACTIVE_STOCK: open at any time in the period (display only).
+enum MarketDemandBasis {
+  NEW_POSTINGS
+  ACTIVE_STOCK
+}
+
+/// Sources with at least one successful fetch inside a period. Only their companies' jobs count for that period.
+model MarketPanelMembership {
+  id                String           @id @default(cuid())
+  periodType        MarketPeriodType
+  periodStart       DateTime
+  periodEnd         DateTime
+  sourceId          String
+  companyId         String
+  successfulFetches Int
+  firstSuccessAt    DateTime
+  lastSuccessAt     DateTime
+  computedAt        DateTime         @default(now())
+
+  @@unique([periodType, periodStart, sourceId])
+  @@index([periodType, periodStart])
+  @@map("market_panel_membership")
+}
+
+/// Population behind one career (or lane) demand figure. Complete periods are written once; the open period is
+/// replaced on each aggregation until it closes. No foreign keys, so history survives skill merges.
+model MarketCareerSnapshot {
+  id                 String            @id @default(cuid())
+  periodType         MarketPeriodType
+  periodStart        DateTime
+  periodEnd          DateTime
+  basis              MarketDemandBasis
+  careerId           String
+  laneKey            String            @default("all")
+  methodologyVersion String
+  isComplete         Boolean
+  totalJobs          Int
+  cappedTotal        Float
+  companyCount       Int
+  capJobs            Int
+  panelSources       Int
+  panelCompanies     Int
+  /// Thresholds used (classification and skill confidence, company cap share).
+  params             Json
+  computedAt         DateTime          @default(now())
+
+  @@unique([periodType, periodStart, basis, careerId, laneKey, methodologyVersion])
+  @@index([careerId, laneKey, periodType, basis, periodStart])
+  @@map("market_career_snapshot")
+}
+
+/// One skill's demand inside a career (or lane) for one period and basis. demandPct = cappedJobCount / cappedTotal;
+/// wilsonLower/Upper are the 95% Wilson interval on that share with n = cappedTotal.
+model MarketSkillSnapshot {
+  id                 String            @id @default(cuid())
+  periodType         MarketPeriodType
+  periodStart        DateTime
+  periodEnd          DateTime
+  basis              MarketDemandBasis
+  careerId           String
+  laneKey            String            @default("all")
+  skillId            String
+  skillName          String
+  methodologyVersion String
+  isComplete         Boolean
+  jobCount           Int
+  requiredCount      Int
+  preferredCount     Int
+  niceCount          Int
+  companyCount       Int
+  cappedJobCount     Float
+  totalJobs          Int
+  cappedTotal        Float
+  demandPct          Float
+  wilsonLower        Float
+  wilsonUpper        Float
+  panelCompanies     Int
+  computedAt         DateTime          @default(now())
+
+  @@unique([periodType, periodStart, basis, careerId, laneKey, skillId, methodologyVersion])
+  @@index([careerId, laneKey, periodType, basis, periodStart])
+  @@index([skillId])
+  @@map("market_skill_snapshot")
+}

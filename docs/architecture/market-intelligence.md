@@ -60,8 +60,13 @@ the global defaults in `IntelConfig`.
 
 - Basis `NEW_POSTINGS`: jobs whose `firstSeenAt` is inside the period. Used for trends.
 - Basis `ACTIVE_STOCK`: jobs open at any time in the period. Used for display.
-- Periods: ISO weeks and calendar months (never overlapping).
-- Per-company contribution cap; Wilson lower bound as confidence; panel membership stored.
+- Periods: UTC ISO weeks (Monday 00:00) and calendar months (never overlapping).
+- Per-company contribution cap (`demand.companyCapShare`, default 0.2); Wilson 95% interval on the
+  capped share; panel membership stored (`MarketPanelMembership`: sources with a completed fetch in
+  the period). Complete snapshots are append-only; the open period is replaced until it closes.
+- Methodology version `demand-1`. Redis cache key `market:demand:<gen>:…` is invalidated by
+  incrementing `market:demand:gen` after each career aggregation. The 20:00 IST scheduler slot
+  publishes one `market.aggregate` task per enabled career.
 
 ## Trends
 
@@ -113,6 +118,47 @@ correction across skills of a career/lane, confirmation over consecutive steps, 
 - Every demand-facing query (slice summary, career skills, drill-down, profile counts, label
   export, quality gate) counts only `laneKey = 'all'` rows with confidence >=
   `demand.minClassificationConfidence`; lane views filter on the lane key instead.
+- Demand engine (M9, `methodologyVersion = demand-1`): one SQL population per
+  `(careerId, laneKey, period, basis)` over the period's panel companies, then a per-company
+  weight `min(1, cap / companyJobs)`. `NEW_POSTINGS` uses `firstSeenAt` inside the bucket;
+  `ACTIVE_STOCK` uses jobs open at any time in the bucket. The rolling 90-day current view is
+  labelled `ROLLING` and is never a trend input. Admin "Market demand" shows n, companies, panel,
+  period and Wilson bounds on every row.
+
+### Demand reference SQL (NEW_POSTINGS, `laneKey = 'all'`)
+
+Numbers in `MarketSkillSnapshot` can be reproduced with:
+
+```sql
+WITH panel AS (
+  SELECT DISTINCT "companyId" FROM market_panel_membership
+  WHERE "periodType" = :periodType AND "periodStart" = :periodStart
+), pop AS (
+  SELECT DISTINCT j.id, j."companyId"
+  FROM market_job j JOIN market_job_career c ON c."marketJobId" = j.id
+  WHERE c."careerId" = :careerId AND c."laneKey" = 'all'
+    AND c.confidence >= :minClassificationConfidence
+    AND j."companyId" IN (SELECT "companyId" FROM panel)
+    AND j."firstSeenAt" >= :periodStart AND j."firstSeenAt" < :periodEnd
+), comp AS (
+  SELECT "companyId", COUNT(*)::float AS n FROM pop GROUP BY 1
+), cap AS (
+  SELECT GREATEST(1, CEIL(:companyCapShare * (SELECT COUNT(*) FROM pop))) AS k
+), w AS (
+  SELECT comp."companyId", LEAST(1.0, cap.k / comp.n) AS w FROM comp, cap
+), tot AS (
+  SELECT SUM(comp.n * w.w) AS capped FROM comp JOIN w USING ("companyId")
+), js AS (
+  SELECT DISTINCT s."skillId", pop.id, pop."companyId"
+  FROM market_job_skill s JOIN pop ON pop.id = s."marketJobId"
+  WHERE s."skillId" IS NOT NULL AND s.confidence >= :minSkillConfidence
+)
+SELECT js."skillId", COUNT(*)::int AS jobs, SUM(w.w)::float AS "cappedJobCount",
+       (SUM(w.w) / (SELECT capped FROM tot))::float AS "demandPct"
+FROM js JOIN w USING ("companyId") GROUP BY js."skillId";
+```
+
+Wilson bounds are then `wilson(cappedJobCount, cappedTotal)` with z = 1.96.
 
 ## M6 vertical slice runbook and quality gate
 
@@ -135,3 +181,5 @@ correction across skills of a career/lane, confirmation over consecutive steps, 
 7. M8 accept (classification precision >= 0.90) is checked with the same labelled file after
    "Reclassify" has run with the career-2 classifier; predicted careers are the rows that demand
    counts (`--min-confidence` overrides the default threshold for experiments).
+8. M9: after classification, Admin -> Market demand (or Market runs -> Aggregate demand) writes
+   weekly and monthly snapshots on both bases. Reproduce a sample career with the SQL above.

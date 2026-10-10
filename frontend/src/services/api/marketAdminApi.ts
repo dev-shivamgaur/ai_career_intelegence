@@ -180,6 +180,81 @@ export function startRetentionRun() {
   return http.post<{ runId: string; taskCount: number }>("/admin/market/runs/retention", {});
 }
 
+export function startAggregateRun(careerIds?: string[]) {
+  return http.post<{ runId: string; taskCount: number }>("/admin/market/runs/aggregate", { careerIds });
+}
+
+export interface DemandPeriod {
+  periodStart: string;
+  periodEnd: string;
+  isComplete: boolean;
+  totalJobs: number;
+  companyCount: number;
+  panelCompanies: number;
+  computedAt: string;
+}
+
+export interface DemandSkillRow {
+  skillId: string;
+  name: string;
+  jobCount: number;
+  requiredCount: number;
+  preferredCount: number;
+  niceCount: number;
+  cappedJobCount: number;
+  demandPct: number;
+  companies: number;
+  confidence: { method: string; lower: number; upper: number };
+  n: number;
+  panelCompanies: number;
+  period: { type: string; start: string; end: string; complete?: boolean; days?: number };
+}
+
+export interface DemandView {
+  career: { id: string; title: string; slug: string };
+  lane: string;
+  lanes?: string[];
+  periodType?: string;
+  basis: string;
+  snapshot: {
+    n: number;
+    cappedN: number;
+    companies: number;
+    panel: { sources: number; companies: number };
+    period: { type: string; start: string; end: string; complete?: boolean; days?: number };
+    basis: string;
+    methodologyVersion: string;
+    computedAt: string;
+    capJobs: number;
+    params: unknown;
+  } | null;
+  skills: DemandSkillRow[];
+}
+
+export function getDemand(careerId: string, q: { periodType?: string; basis?: string; lane?: string; periodStart?: string; take?: number } = {}) {
+  const params = new URLSearchParams();
+  if (q.periodType) params.set("periodType", q.periodType);
+  if (q.basis) params.set("basis", q.basis);
+  if (q.lane) params.set("lane", q.lane);
+  if (q.periodStart) params.set("periodStart", q.periodStart);
+  if (q.take) params.set("take", String(q.take));
+  const qs = params.toString();
+  return http.get<DemandView>(`/admin/market/demand/careers/${careerId}${qs ? `?${qs}` : ""}`);
+}
+
+export function getDemandPeriods(careerId: string, q: { periodType?: string; basis?: string; lane?: string } = {}) {
+  const params = new URLSearchParams();
+  if (q.periodType) params.set("periodType", q.periodType);
+  if (q.basis) params.set("basis", q.basis);
+  if (q.lane) params.set("lane", q.lane);
+  const qs = params.toString();
+  return http.get<DemandPeriod[]>(`/admin/market/demand/careers/${careerId}/periods${qs ? `?${qs}` : ""}`);
+}
+
+export function getCurrentDemand(careerId: string, lane = "all") {
+  return http.get<DemandView>(`/admin/market/demand/careers/${careerId}/current?lane=${encodeURIComponent(lane)}`);
+}
+
 export function getHealth() {
   return http.get<MarketHealth>("/admin/market/health");
 }

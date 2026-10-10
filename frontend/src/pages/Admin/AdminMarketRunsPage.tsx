@@ -105,6 +105,9 @@ export function AdminMarketRunsPage() {
             <Button size="sm" variant="outline" disabled={busy || pipelineOff} onClick={() => void run(() => marketApi.startRetentionRun(), "Retention")}>
               Run retention now
             </Button>
+            <Button size="sm" variant="outline" disabled={busy || pipelineOff} onClick={() => void run(() => marketApi.startAggregateRun(), "Aggregate")}>
+              Aggregate demand
+            </Button>
           </div>
           {h && h.queues.length > 0 && (
             <div className="grid gap-2 text-xs sm:grid-cols-3 lg:grid-cols-4">

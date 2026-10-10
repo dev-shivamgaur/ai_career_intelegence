@@ -255,6 +255,48 @@ export function getCurrentDemand(careerId: string, lane = "all") {
   return http.get<DemandView>(`/admin/market/demand/careers/${careerId}/current?lane=${encodeURIComponent(lane)}`);
 }
 
+export type SkillTrendLabel = "INCREASING" | "DECREASING" | "EMERGING" | "STABLE" | "INSUFFICIENT_DATA";
+
+export interface TrendView {
+  career: { id: string; title: string; slug: string };
+  lane: string;
+  periodType: string;
+  methodologyVersion: string;
+  coldStart: boolean;
+  period: { start: string; end: string; priorStart: string; priorEnd: string; basis: string } | null;
+  trends: Array<{
+    skillId: string;
+    name: string;
+    label: SkillTrendLabel;
+    share: number;
+    priorShare: number;
+    effectPp: number;
+    relativeGrowth: number | null;
+    pValue: number | null;
+    adjustedPValue: number | null;
+    confirmedSteps: number;
+    jobCount: number;
+    priorJobCount: number;
+    n: number;
+    priorN: number;
+    companies: number;
+    priorCompanies: number;
+    panel: { companies: number; sources: number };
+    period: { start: string; end: string; priorStart: string; priorEnd: string };
+    methodologyVersion: string;
+    computedAt: string;
+  }>;
+}
+
+export function getTrends(careerId: string, q: { periodType?: string; lane?: string; label?: string } = {}) {
+  const params = new URLSearchParams();
+  if (q.periodType) params.set("periodType", q.periodType);
+  if (q.lane) params.set("lane", q.lane);
+  if (q.label) params.set("label", q.label);
+  const qs = params.toString();
+  return http.get<TrendView>(`/admin/market/demand/careers/${careerId}/trends${qs ? `?${qs}` : ""}`);
+}
+
 export function getHealth() {
   return http.get<MarketHealth>("/admin/market/health");
 }

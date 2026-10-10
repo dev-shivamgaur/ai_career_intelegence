@@ -4,7 +4,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ErrorState } from "@/components/ui/States";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import * as marketApi from "@/services/api/marketAdminApi";
-import type { DemandView } from "@/services/api/marketAdminApi";
+import type { DemandView, SkillTrendLabel, TrendView } from "@/services/api/marketAdminApi";
 import { useToast } from "@/store/hooks";
 import { useState } from "react";
 
@@ -49,6 +49,70 @@ function Provenance({ view }: { view: DemandView }) {
           {s.methodologyVersion} · {fmt(s.computedAt)}
         </p>
       </div>
+    </div>
+  );
+}
+
+const TREND_TONE: Record<SkillTrendLabel, "success" | "danger" | "warning" | "neutral" | "brand"> = {
+  INCREASING: "success",
+  DECREASING: "danger",
+  EMERGING: "brand",
+  STABLE: "neutral",
+  INSUFFICIENT_DATA: "warning",
+};
+
+function TrendTable({ view }: { view: TrendView }) {
+  if (view.coldStart) {
+    return (
+      <p className="text-sm text-slate-500">
+        INSUFFICIENT_DATA until at least {view.methodologyVersion === "trend-1" ? "3 complete" : "enough"} {view.periodType.toLowerCase()} periods exist on a
+        stable panel. Frequency (demand share) stays separate from growth.
+      </p>
+    );
+  }
+  if (!view.trends.length) return <p className="text-sm text-slate-500">No trend rows for this career and lane yet.</p>;
+  return (
+    <div className="overflow-x-auto">
+      <p className="mb-2 text-xs text-slate-500">
+        NEW_POSTINGS · {view.methodologyVersion}
+        {view.period
+          ? ` · ${new Date(view.period.priorStart).toLocaleDateString()} → ${new Date(view.period.start).toLocaleDateString()}`
+          : ""}
+      </p>
+      <table className="w-full text-left text-sm">
+        <thead className="text-xs text-slate-500">
+          <tr>
+            <th className="py-1">Skill</th>
+            <th>Label</th>
+            <th>Share</th>
+            <th>Δ pp</th>
+            <th>Adj. p</th>
+            <th>n / prior n</th>
+            <th>Panel</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-stone-200 dark:divide-stone-800">
+          {view.trends.map((row) => (
+            <tr key={row.skillId}>
+              <td className="py-1">{row.name}</td>
+              <td>
+                <Badge tone={TREND_TONE[row.label]}>{row.label}</Badge>
+              </td>
+              <td>
+                {pct(row.priorShare)} → {pct(row.share)}
+              </td>
+              <td>{(row.effectPp * 100).toFixed(1)}</td>
+              <td>{row.adjustedPValue === null ? "—" : row.adjustedPValue.toFixed(3)}</td>
+              <td>
+                {row.n} / {row.priorN}
+              </td>
+              <td>
+                {row.panel.companies} companies · {row.panel.sources} sources
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -126,6 +190,10 @@ export function AdminMarketDemandPage() {
     [selected, periodType, basis, lane, periodStart],
   );
   const current = useAsyncData(() => (selected ? marketApi.getCurrentDemand(selected, lane) : Promise.resolve(null)), [selected, lane]);
+  const trends = useAsyncData(
+    () => (selected ? marketApi.getTrends(selected, { periodType, lane }) : Promise.resolve(null)),
+    [selected, periodType, lane],
+  );
 
   const lanes = Array.from(new Set(["all", ...(demand.data?.lanes ?? [])]));
 
@@ -134,6 +202,7 @@ export function AdminMarketDemandPage() {
     void periods.reload();
     void demand.reload();
     void current.reload();
+    void trends.reload();
   }
 
   async function aggregate() {
@@ -148,12 +217,12 @@ export function AdminMarketDemandPage() {
     }
   }
 
-  const error = profiles.error ?? periods.error ?? demand.error ?? current.error;
+  const error = profiles.error ?? periods.error ?? demand.error ?? current.error ?? trends.error;
   if (error) {
     return (
       <ErrorState
         message={error}
-        code={profiles.errorCode ?? periods.errorCode ?? demand.errorCode ?? current.errorCode}
+        code={profiles.errorCode ?? periods.errorCode ?? demand.errorCode ?? current.errorCode ?? trends.errorCode}
         onRetry={refresh}
       />
     );
@@ -267,6 +336,14 @@ export function AdminMarketDemandPage() {
             </>
           )}
         </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Trends (NEW_POSTINGS)"
+          description="Disjoint periods on the intersection panel, company cap, Benjamini–Hochberg across skills of this career/lane, confirmation over consecutive steps. Frequency and growth stay separate."
+        />
+        <CardBody>{trends.data && <TrendTable view={trends.data} />}</CardBody>
       </Card>
     </div>
   );

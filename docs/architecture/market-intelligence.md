@@ -70,10 +70,16 @@ the global defaults in `IntelConfig`.
 
 ## Trends
 
-Disjoint consecutive periods, stable company panel (companies successfully fetched in every
-compared period), company cap, minimum samples, two-proportion z-test with Benjamini-Hochberg
-correction across skills of a career/lane, confirmation over consecutive steps, and
-`methodologyVersion` on every row. Until enough periods exist the label is `INSUFFICIENT_DATA`.
+- Only `NEW_POSTINGS` on **disjoint** consecutive UTC weeks/months. Each comparison uses the
+  **intersection panel** (companies with a successful fetch in both periods) and the same company cap
+  as demand, so a source-mix change or one employer's burst cannot create a trend.
+- Two-proportion z-test on capped counts; Benjamini–Hochberg across the skills of one career/lane;
+  `INCREASING`/`DECREASING` require `confirmSteps` consecutive significant steps in the same direction
+  (default 2 steps = 3 periods). `EMERGING` is a low base share with strong relative growth and enough
+  companies in the latest period.
+- Guards (`minPanelCompanies`, `minTotalJobs`, `minJobCount`) and the cold start (fewer than
+  `confirmSteps + 1` complete periods) label `INSUFFICIENT_DATA`. `methodologyVersion = trend-1`; old
+  rows are never relabelled in place. Frequency (demand share) and growth (trend label) stay separate.
 
 ## Feature flags (all default off)
 
@@ -124,6 +130,10 @@ correction across skills of a career/lane, confirmation over consecutive steps, 
   `ACTIVE_STOCK` uses jobs open at any time in the bucket. The rolling 90-day current view is
   labelled `ROLLING` and is never a trend input. Admin "Market demand" shows n, companies, panel,
   period and Wilson bounds on every row.
+- Trend engine (M10, `methodologyVersion = trend-1`): after each career's demand snapshots, the
+  aggregate task recomputes `SkillTrend` for complete NEW_POSTINGS periods. Unit tests cover a changing
+  source mix (no trend), a one-company burst (no INCREASING), steady growth over 3 periods (INCREASING),
+  and cold start (INSUFFICIENT_DATA). Admin demand page lists labels with n, panel and adjusted p.
 
 ### Demand reference SQL (NEW_POSTINGS, `laneKey = 'all'`)
 
@@ -183,3 +193,5 @@ Wilson bounds are then `wilson(cappedJobCount, cappedTotal)` with z = 1.96.
    counts (`--min-confidence` overrides the default threshold for experiments).
 8. M9: after classification, Admin -> Market demand (or Market runs -> Aggregate demand) writes
    weekly and monthly snapshots on both bases. Reproduce a sample career with the SQL above.
+9. M10: the same aggregation writes `SkillTrend` rows. Until three complete NEW_POSTINGS periods
+   exist, every label is INSUFFICIENT_DATA. Gate C (turn on `MARKET_UI`) waits for that cold start.

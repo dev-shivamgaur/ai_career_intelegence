@@ -11,6 +11,7 @@ import { ClassifyStage } from './classify/classify.stage';
 import { ConnectorRegistry } from './connectors/connector-registry';
 import { MarketDemandController } from './demand/market-demand.controller';
 import { MarketDemandService } from './demand/market-demand.service';
+import { MarketTrendService } from './trend/market-trend.service';
 import { MarketHttpClient } from './http/market-http-client';
 import { ExtractStage } from './extract/extract.stage';
 import { MarketLlmExtractor } from './extract/market-llm-extractor.service';
@@ -59,6 +60,7 @@ import { MarketSourcesService } from './sources/market-sources.service';
     ClassifyStage,
     MarketSliceService,
     MarketDemandService,
+    MarketTrendService,
   ],
   exports: [MarketRunService, MarketPublisher],
 })

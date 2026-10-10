@@ -5,6 +5,7 @@ import { Role } from '../../prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { MarketTrendService } from '../trend/market-trend.service';
 import { MarketDemandService } from './market-demand.service';
 
 export class AggregateDto {
@@ -21,7 +22,10 @@ export class AggregateDto {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('admin/market')
 export class MarketDemandController {
-  constructor(private readonly demand: MarketDemandService) {}
+  constructor(
+    private readonly demand: MarketDemandService,
+    private readonly trends: MarketTrendService,
+  ) {}
 
   /** Recomputes demand snapshots (and trends) for every enabled career, or the given ones. */
   @Post('runs/aggregate')
@@ -54,5 +58,16 @@ export class MarketDemandController {
   @Get('demand/panel')
   panel(@Query('periodType') periodType?: string, @Query('periodStart') periodStart?: string) {
     return this.demand.panel(periodType, periodStart);
+  }
+
+  @Get('demand/careers/:careerId/trends')
+  careerTrends(
+    @Param('careerId') careerId: string,
+    @Query('periodType') periodType?: string,
+    @Query('lane') lane?: string,
+    @Query('label') label?: string,
+    @Query('take') take?: string,
+  ) {
+    return this.trends.list(careerId, { periodType, lane, label, take: take ? Number(take) : undefined });
   }
 }

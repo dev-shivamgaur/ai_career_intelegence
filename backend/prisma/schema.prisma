@@ -1635,3 +1635,55 @@ model MarketSkillSnapshot {
   @@index([skillId])
   @@map("market_skill_snapshot")
 }
+
+enum SkillTrendLabel {
+  INCREASING
+  DECREASING
+  EMERGING
+  STABLE
+  INSUFFICIENT_DATA
+}
+
+/// Disjoint NEW_POSTINGS comparison on the intersection panel of consecutive periods. Old rows are never relabelled;
+/// a methodology change bumps methodologyVersion and writes new rows.
+model SkillTrend {
+  id                 String           @id @default(cuid())
+  periodType         MarketPeriodType
+  /// Later period of the compared pair (or of the confirmation window's end).
+  periodStart        DateTime
+  periodEnd          DateTime
+  priorPeriodStart   DateTime
+  priorPeriodEnd     DateTime
+  careerId           String
+  laneKey            String           @default("all")
+  skillId            String
+  skillName          String
+  methodologyVersion String
+  /// Always NEW_POSTINGS; stored so readers do not have to know the rule.
+  basis              MarketDemandBasis @default(NEW_POSTINGS)
+  label              SkillTrendLabel
+  panelCompanies     Int
+  panelSources       Int
+  jobCount           Float
+  priorJobCount      Float
+  totalJobs          Float
+  priorTotalJobs     Float
+  share              Float
+  priorShare         Float
+  /// Absolute change in share (percentage points as a fraction, e.g. 0.05 = +5 pp).
+  effectPp           Float
+  relativeGrowth     Float?
+  pValue             Float?
+  adjustedPValue     Float?
+  confirmedSteps     Int              @default(0)
+  companies          Int
+  priorCompanies     Int
+  params             Json
+  computedAt         DateTime         @default(now())
+
+  @@unique([periodType, periodStart, careerId, laneKey, skillId, methodologyVersion])
+  @@index([careerId, laneKey, periodType, periodStart])
+  @@index([skillId])
+  @@index([label])
+  @@map("skill_trend")
+}

@@ -207,6 +207,14 @@ export interface SkillGapItem {
   proficiency: number;
   stretch?: boolean;
   why: WhyExplanation;
+  market?: {
+    demandPct: number | null;
+    jobCount: number | null;
+    companies: number | null;
+    n: number | null;
+    wilsonLower: number | null;
+    trend: string | null;
+  };
 }
 
 export interface SkillLesson {

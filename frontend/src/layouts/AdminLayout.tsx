@@ -29,6 +29,7 @@ const links = [
   { to: "/admin/market/slice", label: "Market slice", icon: HiOutlineChartBar },
   { to: "/admin/market/skills", label: "Skill review", icon: HiOutlineCollection },
   { to: "/admin/market/demand", label: "Market demand", icon: HiOutlineTrendingUp },
+  { to: "/admin/market/compare", label: "Roadmap vs market", icon: HiOutlineChartBar },
 ];
 
 export function AdminLayout() {

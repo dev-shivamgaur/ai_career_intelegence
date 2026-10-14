@@ -30,6 +30,7 @@ const privateItems = [
   { to: "/roadmap", label: "Roadmap", icon: Map },
   { to: "/jobs", label: "Jobs", icon: Building2 },
   { to: "/opportunities", label: "Opportunities", icon: Briefcase },
+  ...(import.meta.env.VITE_MARKET_UI === "true" ? [{ to: "/market", label: "Market", icon: LineChart }] : []),
   { to: "/research", label: "Research", icon: Search },
   { to: "/copilot", label: "AI Copilot", icon: MessageSquare },
   { to: "/progress", label: "Progress", icon: Activity },

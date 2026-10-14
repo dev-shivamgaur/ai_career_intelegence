@@ -29,6 +29,7 @@ export function SkillGapCard({
   const [error, setError] = useState<string | null>(null);
 
   const needsWork = item.currentStatus === "missing" || item.currentStatus === "needs_improvement";
+  const market = item.market;
 
   const lessonPhases = [
     { id: "D7", label: "7 days" },
@@ -95,6 +96,11 @@ export function SkillGapCard({
               <Badge tone={item.priority === "high" ? "danger" : item.priority === "medium" ? "warning" : "neutral"}>
                 {item.priority} priority
               </Badge>
+              {market && market.demandPct !== null && (
+                <Badge tone="neutral">
+                  market {(market.demandPct * 100).toFixed(0)}%{market.trend ? ` · ${market.trend}` : ""}
+                </Badge>
+              )}
               <Button size="sm" variant="ghost" onClick={() => setWhyOpen(true)}>
                 How to close this
               </Button>

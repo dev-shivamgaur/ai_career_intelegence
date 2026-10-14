@@ -28,6 +28,8 @@ import {
 } from '../ai/lesson-check';
 import type { PracticeAnswerDto } from './dto/practice.dto';
 import { withTimeout } from '../rag/qdrant-client';
+import { marketFlags } from '../market/market.flags';
+import { MarketCompareService } from '../market/compare/market-compare.service';
 
 @Injectable()
 export class SkillGapService {
@@ -42,6 +44,7 @@ export class SkillGapService {
     private readonly corpus: RoadmapCorpusService,
     private readonly rag: RagService,
     private readonly github: GithubAnalyzeService,
+    private readonly marketCompare: MarketCompareService,
   ) {}
 
   async list(userId: string) {
@@ -431,7 +434,7 @@ export class SkillGapService {
 
     const created: Array<{
       id: string;
-      skill: { name: string; category: string };
+      skill: { id: string; name: string; category: string };
       currentStatus: SkillStatus;
       required: boolean;
       priority: Priority;
@@ -597,7 +600,7 @@ export class SkillGapService {
     userId: string,
     gaps: Array<{
       id: string;
-      skill: { name: string; category: string };
+      skill: { id: string; name: string; category: string };
       currentStatus: SkillStatus;
       required: boolean;
       priority: Priority;
@@ -613,6 +616,18 @@ export class SkillGapService {
     const statusScore = (status: SkillStatus) =>
       status === SkillStatus.STRONG ? 90 : status === SkillStatus.GOOD ? 70 : status === SkillStatus.NEEDS_IMPROVEMENT ? 40 : 8;
 
+    let marketBySkill = new Map<string, { demandPct: number | null; jobCount: number | null; companies: number | null; n: number | null; wilsonLower: number | null; trend: string | null }>();
+    if (marketFlags.skillGapField()) {
+      const goal = await this.prisma.careerGoal.findFirst({ where: { userId, isActive: true }, select: { careerId: true } });
+      if (goal) {
+        try {
+          marketBySkill = await this.marketCompare.marketBySkill(goal.careerId, gaps.map((g) => g.skill.id));
+        } catch (err) {
+          this.logger.debug(`Market annotation skipped: ${(err as Error).message}`);
+        }
+      }
+    }
+
     return gaps.map((g) => {
       const us =
         skills.find((s) => s.skill.name.toLowerCase() === g.skill.name.toLowerCase()) ??
@@ -625,6 +640,7 @@ export class SkillGapService {
       if (!Array.isArray(why.learnWhere)) {
         why.learnWhere = prepareWhere(g.skill.name, 'your stack', 'PROJECT');
       }
+      const market = marketBySkill.get(g.skill.id);
       return {
         id: g.id,
         skill: g.skill.name,
@@ -636,6 +652,7 @@ export class SkillGapService {
         proficiency,
         stretch: !g.required,
         why,
+        ...(market ? { market } : {}),
       };
     });
   }

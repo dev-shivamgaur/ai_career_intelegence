@@ -11,6 +11,8 @@ import { ClassifyStage } from './classify/classify.stage';
 import { ConnectorRegistry } from './connectors/connector-registry';
 import { MarketDemandController } from './demand/market-demand.controller';
 import { MarketDemandService } from './demand/market-demand.service';
+import { MarketCompareAdminController, MarketLearnerController } from './compare/market-compare.controller';
+import { MarketCompareService } from './compare/market-compare.service';
 import { MarketTrendService } from './trend/market-trend.service';
 import { MarketHttpClient } from './http/market-http-client';
 import { ExtractStage } from './extract/extract.stage';
@@ -35,7 +37,16 @@ import { MarketSourcesService } from './sources/market-sources.service';
 
 @Module({
   imports: [AuthModule, IntelConfigModule, SkillIntelModule],
-  controllers: [MarketSourcesController, MarketRunsController, MarketJobsController, MarketSliceController, SkillReviewController, MarketDemandController],
+  controllers: [
+    MarketSourcesController,
+    MarketRunsController,
+    MarketJobsController,
+    MarketSliceController,
+    SkillReviewController,
+    MarketDemandController,
+    MarketLearnerController,
+    MarketCompareAdminController,
+  ],
   providers: [
     MarketHttpClient,
     ConnectorRegistry,
@@ -61,7 +72,8 @@ import { MarketSourcesService } from './sources/market-sources.service';
     MarketSliceService,
     MarketDemandService,
     MarketTrendService,
+    MarketCompareService,
   ],
-  exports: [MarketRunService, MarketPublisher],
+  exports: [MarketRunService, MarketPublisher, MarketCompareService],
 })
 export class MarketModule {}

@@ -72,6 +72,10 @@ const AdminMarketSlicePage = lazy(() =>
 const AdminMarketDemandPage = lazy(() =>
   import("@/pages/Admin/AdminMarketDemandPage").then((m) => ({ default: m.AdminMarketDemandPage })),
 );
+const AdminMarketComparePage = lazy(() =>
+  import("@/pages/Admin/AdminMarketComparePage").then((m) => ({ default: m.AdminMarketComparePage })),
+);
+const MarketPage = lazy(() => import("@/pages/Market/MarketPage").then((m) => ({ default: m.MarketPage })));
 
 function withSuspense(element: ReactNode) {
   return <Suspense fallback={<RouteFallback />}>{element}</Suspense>;
@@ -104,6 +108,7 @@ const router = createBrowserRouter([
           { path: "/government-opportunities", element: withSuspense(<GovernmentOpportunitiesPage />) },
           { path: "/sarkari-naukri", element: withSuspense(<SarkariHubPage />) },
           { path: "/sarkari-naukri/:slug", element: withSuspense(<SarkariExamPage />) },
+          { path: "/market", element: withSuspense(<MarketPage />) },
           { path: "/research", element: withSuspense(<ResearchPage />) },
           { path: "/copilot", element: withSuspense(<CopilotPage />) },
           { path: "/progress", element: withSuspense(<ProgressPage />) },
@@ -132,6 +137,7 @@ const router = createBrowserRouter([
           { path: "/admin/market/slice", element: withSuspense(<AdminMarketSlicePage />) },
           { path: "/admin/market/skills", element: withSuspense(<AdminMarketSkillsPage />) },
           { path: "/admin/market/demand", element: withSuspense(<AdminMarketDemandPage />) },
+          { path: "/admin/market/compare", element: withSuspense(<AdminMarketComparePage />) },
         ],
       },
     ],

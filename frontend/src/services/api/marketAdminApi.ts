@@ -288,6 +288,42 @@ export interface TrendView {
   }>;
 }
 
+export interface CompareSkill {
+  skillId: string;
+  name: string;
+  demandPct: number | null;
+  jobCount: number | null;
+  companies: number | null;
+  n: number | null;
+  wilsonLower: number | null;
+  roadmapImportance: string | null;
+  roadmapType: string | null;
+  trend: string | null;
+}
+
+export interface RoadmapVsMarket {
+  career: { id: string; title: string; slug: string };
+  lane: string;
+  basis: string;
+  period: { start: string; end: string; complete: boolean } | null;
+  methodology: { demand: string; trend: string };
+  sets: {
+    overlap: CompareSkill[];
+    roadmapOnly: CompareSkill[];
+    marketOnly: CompareSkill[];
+    emerging: CompareSkill[];
+    mismatch: CompareSkill[];
+  };
+}
+
+export function getRoadmapVsMarket(careerId: string, lane = "all") {
+  return http.get<RoadmapVsMarket>(`/admin/market/careers/${careerId}/roadmap-vs-market?lane=${encodeURIComponent(lane)}`);
+}
+
+export function promoteMarketSkill(careerId: string, skillId: string) {
+  return http.post<{ id: string; skillId: string; source: string; created: boolean }>(`/admin/market/careers/${careerId}/promote`, { skillId });
+}
+
 export function getTrends(careerId: string, q: { periodType?: string; lane?: string; label?: string } = {}) {
   const params = new URLSearchParams();
   if (q.periodType) params.set("periodType", q.periodType);

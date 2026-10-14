@@ -134,6 +134,28 @@ the global defaults in `IntelConfig`.
   aggregate task recomputes `SkillTrend` for complete NEW_POSTINGS periods. Unit tests cover a changing
   source mix (no trend), a one-company burst (no INCREASING), steady growth over 3 periods (INCREASING),
   and cold start (INSUFFICIENT_DATA). Admin demand page lists labels with n, panel and adjusted p.
+- Roadmap vs market (M11): latest monthly `ACTIVE_STOCK` snapshot versus `CareerSkillRequirement`.
+  A skill is "in the market" at share >= 0.05. Sets: overlap, roadmap-only, market-only, emerging
+  (stored `EMERGING` trend), and importance mismatch (required/high but share < 0.15, or
+  optional/low but share >= 0.20). Admin "Roadmap vs market" can promote a market-only skill;
+  that is the only writer, and it sets `source=ADMIN`. Learner `GET /market/careers/:slug/*` and
+  the `/market` page stay hidden unless `MARKET_UI` (API) and `VITE_MARKET_UI` (nav) are on.
+  Skill-gap items gain a `market` field only when `MARKET_SKILL_GAP_FIELD` is on.
+
+## Future phases (not scheduled)
+
+These are specified in the plan and are not part of the MVP. Do not build them until scheduled.
+
+- **F1** User skill evidence and derived CLAIMED / SUPPORTED / VERIFIED status. Needs M1.
+- **F2** GitHub intelligence on public repos, with consent and deletion on disconnect. Needs F1.
+- **F3** Job matching and apply/upskill bands. Needs M9 and F1.
+- **F4** Priority engine, readiness by `SkillDomain`, and `SkillRelation`. Needs M11, F1 and domains.
+- **F5** Personalized roadmap: read-only plan first, then an opt-in merge. Needs F3 and F4.
+- **F6** Company intelligence. Needs M9.
+- **F7** Resource intelligence. Needs M1.
+- **F8** RAG, research agent and copilot market tools. Needs M9–M11.
+
+Hygiene items H1–H10 change existing behavior and each needs its own approval. They are not part of M0–M11.
 
 ### Demand reference SQL (NEW_POSTINGS, `laneKey = 'all'`)
 

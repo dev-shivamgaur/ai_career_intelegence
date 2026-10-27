@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { AiModule } from '../ai/ai.module';
 import { IntelConfigModule } from '../intel-config/intel-config.module';
 import { SkillIntelModule } from '../skill-intel/skill-intel.module';
 import { SkillCandidateService } from './candidates/skill-candidate.service';
@@ -36,7 +37,7 @@ import { MarketSourcesController } from './sources/market-sources.controller';
 import { MarketSourcesService } from './sources/market-sources.service';
 
 @Module({
-  imports: [AuthModule, IntelConfigModule, SkillIntelModule],
+  imports: [AuthModule, IntelConfigModule, SkillIntelModule, forwardRef(() => AiModule)],
   controllers: [
     MarketSourcesController,
     MarketRunsController,

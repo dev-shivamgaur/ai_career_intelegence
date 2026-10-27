@@ -34,9 +34,9 @@ function Column({ title, rows }: { title: string; rows: CompareSkill[] }) {
 export function MarketPage() {
   const profile = useProfile();
   const slug = profile.data?.careerGoal.slug ?? "";
-  const compare = useAsyncData(() => (enabled && slug ? marketApi.getRoadmapVsMarket(slug) : Promise.resolve(null)), [slug]);
-  const demand = useAsyncData(() => (enabled && slug ? marketApi.getCareerDemand(slug) : Promise.resolve(null)), [slug]);
-  const trends = useAsyncData(() => (enabled && slug ? marketApi.getCareerTrends(slug) : Promise.resolve(null)), [slug]);
+  const compare = useAsyncData((signal) => (enabled && slug ? marketApi.getRoadmapVsMarket(slug, "all", { signal }) : Promise.resolve(null)), [slug]);
+  const demand = useAsyncData((signal) => (enabled && slug ? marketApi.getCareerDemand(slug, "all", { signal }) : Promise.resolve(null)), [slug]);
+  const trends = useAsyncData((signal) => (enabled && slug ? marketApi.getCareerTrends(slug, "all", { signal }) : Promise.resolve(null)), [slug]);
 
   if (!enabled) {
     return (

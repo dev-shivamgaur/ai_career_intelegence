@@ -179,19 +179,19 @@ export function AdminMarketDemandPage() {
   const selected = careerId || careers[0]?.id || "";
 
   const periods = useAsyncData(
-    () => (selected ? marketApi.getDemandPeriods(selected, { periodType, basis, lane }) : Promise.resolve([])),
+    (signal) => (selected ? marketApi.getDemandPeriods(selected, { periodType, basis, lane }, { signal }) : Promise.resolve([])),
     [selected, periodType, basis, lane],
   );
   const demand = useAsyncData(
-    () =>
+    (signal) =>
       selected
-        ? marketApi.getDemand(selected, { periodType, basis, lane, periodStart: periodStart || undefined })
+        ? marketApi.getDemand(selected, { periodType, basis, lane, periodStart: periodStart || undefined }, { signal })
         : Promise.resolve(null),
     [selected, periodType, basis, lane, periodStart],
   );
-  const current = useAsyncData(() => (selected ? marketApi.getCurrentDemand(selected, lane) : Promise.resolve(null)), [selected, lane]);
+  const current = useAsyncData((signal) => (selected ? marketApi.getCurrentDemand(selected, lane, { signal }) : Promise.resolve(null)), [selected, lane]);
   const trends = useAsyncData(
-    () => (selected ? marketApi.getTrends(selected, { periodType, lane }) : Promise.resolve(null)),
+    (signal) => (selected ? marketApi.getTrends(selected, { periodType, lane }, { signal }) : Promise.resolve(null)),
     [selected, periodType, lane],
   );
 

@@ -32,10 +32,10 @@ function SkillPicker({ skills, value, onChange }: { skills: adminApi.AdminSkill[
 export function AdminMarketSkillsPage() {
   const { push } = useToast();
   const [status, setStatus] = useState<(typeof STATUSES)[number]>("PENDING");
-  const candidates = useAsyncData(() => marketApi.listCandidates(status), [status]);
+  const candidates = useAsyncData((signal) => marketApi.listCandidates(status, { signal }), [status]);
   const skills = useAsyncData(() => adminApi.listSkills());
   const [aliasQuery, setAliasQuery] = useState("");
-  const aliases = useAsyncData(() => marketApi.listAliases(aliasQuery || undefined), [aliasQuery]);
+  const aliases = useAsyncData((signal) => marketApi.listAliases(aliasQuery || undefined, { signal }), [aliasQuery]);
   const duplicates = useAsyncData(() => marketApi.listDuplicateSkills());
   const log = useAsyncData(() => marketApi.listReviewLog());
   const [picks, setPicks] = useState<Record<string, string>>({});

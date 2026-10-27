@@ -56,7 +56,9 @@ export function SettingsPage() {
       prefs.setData(next);
       setDirty(false);
       await profile.reload();
-      push("Settings saved. Gaps and Copilot now follow this field.");
+      push(
+        "Settings saved. Skill gap, roadmap, dashboard scores, progress, and research are rebuilding for this role.",
+      );
     } catch (err) {
       push(err instanceof Error ? err.message : "Could not save settings");
     } finally {

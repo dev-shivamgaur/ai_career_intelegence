@@ -8,6 +8,9 @@ import { belongsToOtherLane } from './stack-lanes';
 import { SkillLexiconService } from './skill-lexicon.service';
 import { experienceScoreFromTier, tierPathCopy } from './learner-tier';
 import { filterMissing, skillMatches } from './skill-match';
+import { marketFlags } from '../market/market.flags';
+import { selectMarketPlanSkills, topMarketSkills } from '../market/compare/compare';
+import { MarketCompareService } from '../market/compare/market-compare.service';
 
 @Injectable()
 export class FitScoreService {
@@ -17,6 +20,7 @@ export class FitScoreService {
     private readonly recommendations: RecommendationService,
     private readonly evidence: EvidenceService,
     private readonly lexicon: SkillLexiconService,
+    private readonly marketCompare: MarketCompareService,
   ) {}
 
   async scoreUser(userId: string) {
@@ -107,7 +111,9 @@ export class FitScoreService {
     const pathCopy = tierPathCopy(ev.learnerTier);
 
     const progress = await this.corpus.learningProgress(userId);
-    const marketScore = progress.total ? progress.percent : Math.min(50, skillScore);
+    const fallbackMarket = progress.total ? progress.percent : Math.min(50, skillScore);
+    const marketCoverage = await this.marketCoverage(goal.careerId, [...known]);
+    const marketScore = marketCoverage ?? fallbackMarket;
     const { estimatedMatch, breakdown } = this.recommendations.estimateCareerMatch({
       skillScore,
       projectScore,
@@ -143,7 +149,9 @@ export class FitScoreService {
         projectCount
           ? `${projectCount} project(s) on your profile${linkedProjects ? `, ${linkedProjects} with a public link` : ''}.`
           : 'Add projects (with GitHub or portfolio links) so this score is not only skills.',
-        `Syllabus coverage on your lane is ${progress.percent}%. Completing roadmap tasks raises this.`,
+        marketCoverage == null
+          ? `Syllabus coverage on your lane is ${progress.percent}%. Completing roadmap tasks raises this.`
+          : `Market alignment is ${marketCoverage}% of the top monitored job-post skills you already have evidence for. Syllabus coverage on your lane is ${progress.percent}%.`,
         `Role skill match: ${ev.roleSkillMatchPercent}% (${ev.roleSkillMatched}/${ev.roleSkillTotal || 0} required topics evidenced). ${pathCopy.pathDetail}`,
       ],
       strongAreas: [...new Set([...known].filter((k) => k.length > 1 && k.length < 40))].slice(0, 8).length
@@ -191,5 +199,20 @@ export class FitScoreService {
       },
     });
     return scored;
+  }
+
+  /** Share of the career's top market skills already covered by evidence. Null keeps the progress fallback. */
+  private async marketCoverage(careerId: string, known: string[]): Promise<number | null> {
+    if (!marketFlags.skillGapField()) return null;
+    try {
+      const view = await this.marketCompare.compare(careerId, 'all');
+      if (!view.period) return null;
+      const top = topMarketSkills(view.sets);
+      if (!top.length) return null;
+      const hit = top.filter((row) => skillMatches(row.name, known)).length;
+      return Math.round((hit / top.length) * 100);
+    } catch {
+      return null;
+    }
   }
 }

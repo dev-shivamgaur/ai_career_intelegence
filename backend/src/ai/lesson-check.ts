@@ -21,17 +21,16 @@ export function prepareWhere(skill: string, role: string, learningStyle: string)
   const r = role.trim() || 'your target role';
   const style = learningStyle.toUpperCase();
   const lines = [
-    `Official documentation of ${s} (search it yourself — we do not send you a third-party syllabus page).`,
-    `One small artefact you can finish in a sitting that a ${r} would actually use.`,
+    `Start from the official documentation for ${s}, and write down one place a ${r} actually uses it.`,
+    `Finish one small piece of work that uses ${s}. It should fit in a single sitting.`,
   ];
   if (style === 'COURSE') {
-    lines.push(`Your current course or college lab for ${s}: redo one exercise without copying the sample.`);
+    lines.push(`Redo one course or lab exercise on ${s} without copying the sample solution.`);
   } else if (style === 'READING') {
-    lines.push(`Read one chapter or doc page, then write five lines in your own words — not a definition copied from the heading.`);
+    lines.push(`After one doc page on ${s}, explain the idea in your own words and apply it once.`);
   } else {
-    lines.push(`Build or change something in a repo/folder on your machine that uses ${s}.`);
+    lines.push(`Change a project on your machine so it really uses ${s}, then push that work to a public GitHub repository.`);
   }
-  lines.push(`Evidence: paste a short explanation of what you did, plus a link or file note. Repeating the skill name is not evidence.`);
   return lines;
 }
 
@@ -112,15 +111,19 @@ function stackPrompts(s: string, place: string): string[] {
   ];
 }
 
-/** Hours from the topic itself, not a flat label. */
+/**
+ * Fallback study hours when the model is unavailable.
+ * Tuned by how much new machinery the topic usually adds, not a single flat number.
+ */
 export function hoursForTopic(name: string, stretch = false): number {
   const n = name.toLowerCase();
-  let hours = 3;
-  if (/git|html|css|json|http/.test(n)) hours = 3;
-  if (/javascript|typescript|node|express|react|sql|rest|api|auth|jwt|test/.test(n)) hours = 6;
-  if (/postgres|mongo|redis|docker|prisma|nest|next|security|oauth/.test(n)) hours = 8;
-  if (/kafka|kubernetes|graphql|microservice|queue|rabbit|system design|distributed/.test(n)) hours = 12;
-  if (stretch) hours += 4;
+  let hours = 4;
+  if (/git|markdown|html|css|json|http|browser|dns|domain/.test(n)) hours = 3;
+  if (/javascript|typescript|sql|rest|api|jwt|jest|testing|linux|bash/.test(n)) hours = 5;
+  if (/react|node|express|python|java|go\b|auth|openapi|hosting/.test(n)) hours = 6;
+  if (/postgres|mysql|mongo|redis|docker|prisma|orm|oauth|security|next/.test(n)) hours = 8;
+  if (/nest|graphql|kafka|kubernetes|queue|rabbit|microservice|system design|distributed|ci\/cd|terraform/.test(n)) hours = 12;
+  if (stretch) hours = Math.min(20, hours + 4);
   return hours;
 }
 

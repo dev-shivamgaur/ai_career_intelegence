@@ -65,6 +65,7 @@ export class ResearchService {
     let report: Awaited<ReturnType<AgentService['research']>>;
     try {
       report = await this.agent.research(userId, query);
+      console.log("Report",report);
     } catch {
       report = {
         summary:

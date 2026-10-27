@@ -11,7 +11,6 @@ import {
   Landmark,
   BookOpen,
   Search,
-  MessageSquare,
   Activity,
   Settings,
   ChevronsLeft,
@@ -32,7 +31,6 @@ const privateItems = [
   { to: "/opportunities", label: "Opportunities", icon: Briefcase },
   ...(import.meta.env.VITE_MARKET_UI === "true" ? [{ to: "/market", label: "Market", icon: LineChart }] : []),
   { to: "/research", label: "Research", icon: Search },
-  { to: "/copilot", label: "AI Copilot", icon: MessageSquare },
   { to: "/progress", label: "Progress", icon: Activity },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
@@ -44,7 +42,6 @@ const governmentItems = [
   { to: "/sarkari-naukri", label: "Exam prep", icon: BookOpen },
   { to: "/government-opportunities", label: "Vacancies", icon: Landmark },
   { to: "/roadmap", label: "Prep plan", icon: Map },
-  { to: "/copilot", label: "AI Copilot", icon: MessageSquare },
   { to: "/progress", label: "Progress", icon: Activity },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
@@ -66,7 +63,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "flex h-full flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950",
+        "flex h-full flex-col border-r border-[#C4C4C4] bg-surface-card dark:border-[#3A3333] dark:bg-surface-dark",
         collapsed ? "w-[72px]" : "w-64",
       )}
     >
@@ -90,8 +87,8 @@ export function Sidebar({
               cn(
                 "flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium",
                 isActive
-                  ? "bg-brand-50 text-brand-800 dark:bg-brand-900/30 dark:text-brand-100"
-                  : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-900",
+                  ? "bg-brand-100 text-ink dark:bg-[#2A2424] dark:text-[#AFEEEE]"
+                  : "text-[#5C4E4E] hover:bg-brand-50 dark:text-[#D1D0D0] dark:hover:bg-[#2A2424]",
                 collapsed && "justify-center",
               )
             }

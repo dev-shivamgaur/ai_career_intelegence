@@ -1,3 +1,5 @@
+import { skillMatches } from '../../ai/skill-match';
+
 /** A skill counts as market demand from this active-stock share upward. */
 export const MARKET_MIN_SHARE = 0.05;
 /** Required roadmap skills below this share are an importance mismatch. */
@@ -108,4 +110,60 @@ export function compareRoadmapMarket(roadmap: RoadmapSkill[], market: MarketSkil
     emerging: emerging.sort(byName),
     mismatch: mismatch.sort(byName),
   };
+}
+
+/** A market-only skill enters the learner plan from this company count upward. */
+export const MARKET_PLAN_MIN_COMPANIES = 3;
+/** Cap so one snapshot cannot flood the syllabus plan. */
+export const MARKET_PLAN_CAP = 8;
+
+function trendRank(trend: string | null): number {
+  if (trend === 'INCREASING' || trend === 'EMERGING') return 0;
+  if (trend === 'STABLE') return 1;
+  if (trend === 'DECREASING') return 2;
+  return 3;
+}
+
+/**
+ * Market skills missing from the syllabus, not already evidenced, with enough companies.
+ * Increasing and emerging come first, then demand share. Capped.
+ */
+export function selectMarketPlanSkills(rows: ComparedSkill[], known: Iterable<string>): ComparedSkill[] {
+  const knownList = [...known];
+  return rows
+    .filter(
+      (row) =>
+        row.name.trim().length > 0 &&
+        (row.companies ?? 0) >= MARKET_PLAN_MIN_COMPANIES &&
+        !skillMatches(row.name, knownList),
+    )
+    .sort((a, b) => {
+      const byTrend = trendRank(a.trend) - trendRank(b.trend);
+      if (byTrend) return byTrend;
+      return (b.demandPct ?? 0) - (a.demandPct ?? 0);
+    })
+    .slice(0, MARKET_PLAN_CAP);
+}
+
+export function marketDemandSentence(row: ComparedSkill): string {
+  const pct = row.demandPct == null ? 'an unstated share' : `${Math.round(row.demandPct * 100)}%`;
+  const trend = row.trend ? row.trend.toLowerCase() : 'not recorded';
+  return `${row.name} comes from monitored job posts: ${pct} of recent jobs, ${row.companies ?? 0} companies, trend ${trend}.`;
+}
+
+/** Highest-demand snapshot skills, including ones the learner already has. Used for the dashboard market term. */
+export function topMarketSkills(
+  sets: { overlap: ComparedSkill[]; marketOnly: ComparedSkill[] },
+  cap = MARKET_PLAN_CAP,
+): ComparedSkill[] {
+  const seen = new Set<string>();
+  return [...sets.overlap, ...sets.marketOnly]
+    .filter((row) => {
+      if (row.demandPct == null || (row.companies ?? 0) < MARKET_PLAN_MIN_COMPANIES) return false;
+      if (seen.has(row.skillId)) return false;
+      seen.add(row.skillId);
+      return true;
+    })
+    .sort((a, b) => (b.demandPct ?? 0) - (a.demandPct ?? 0))
+    .slice(0, cap);
 }

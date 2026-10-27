@@ -2,10 +2,11 @@ import { Global, Module } from '@nestjs/common';
 import { CareerToolsService } from './career-tools.service';
 import { AgentService } from './agent.service';
 import { SarkariModule } from '../sarkari/sarkari.module';
+import { LearnerModule } from '../learner/learner.module';
 
 @Global()
 @Module({
-  imports: [SarkariModule],
+  imports: [SarkariModule, LearnerModule],
   providers: [CareerToolsService, AgentService],
   exports: [CareerToolsService, AgentService],
 })

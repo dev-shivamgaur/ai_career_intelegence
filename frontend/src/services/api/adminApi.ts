@@ -314,3 +314,72 @@ export function createSkill(input: { name: string; category: string }) {
 export function deleteSkill(id: string) {
   return http.delete(`/admin/skills/${id}`);
 }
+
+export interface AdminPrepPackageRow {
+  id: string;
+  skillId: string;
+  skillName: string;
+  skillCategory: string;
+  careerScope: string;
+  version: number;
+  status: "DRAFT" | "PUBLISHED";
+  contentHash: string;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: string | null;
+  lessonCount: number;
+}
+
+export interface AdminPrepPackageDetail {
+  id: string;
+  skillId: string;
+  skillName: string;
+  careerScope: string;
+  version: number;
+  status: "DRAFT" | "PUBLISHED";
+  contentHash: string;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: string | null;
+  content: Record<string, unknown>;
+  rubric: Record<string, unknown>;
+  validationErrors: string[];
+}
+
+export function listPrepPackages(params?: { skillId?: string; status?: string }) {
+  const q = new URLSearchParams();
+  if (params?.skillId) q.set("skillId", params.skillId);
+  if (params?.status) q.set("status", params.status);
+  const suffix = q.toString() ? `?${q}` : "";
+  return http.get<AdminPrepPackageRow[]>(`/admin/preparation/packages${suffix}`);
+}
+
+export function getPrepPackage(id: string) {
+  return http.get<AdminPrepPackageDetail>(`/admin/preparation/packages/${id}`);
+}
+
+export function createPrepDraft(skillId: string, conceptual?: boolean) {
+  return http.post<AdminPrepPackageDetail>("/admin/preparation/packages", { skillId, conceptual });
+}
+
+export function updatePrepDraft(id: string, body: { content: Record<string, unknown>; rubric: Record<string, unknown> }) {
+  return http.put<AdminPrepPackageDetail>(`/admin/preparation/packages/${id}`, body);
+}
+
+export function validatePrepPackage(id: string) {
+  return http.post<{ id: string; ok: boolean; errors: string[] }>(`/admin/preparation/packages/${id}/validate`, {});
+}
+
+export function publishPrepPackage(id: string) {
+  return http.post<AdminPrepPackageDetail>(`/admin/preparation/packages/${id}/publish`, {});
+}
+
+export function generatePrepDraft(id: string) {
+  return http.post<AdminPrepPackageDetail>(`/admin/preparation/packages/${id}/generate`, {}, { timeoutMs: 120_000 });
+}
+
+export function previewPrepPackage(id: string) {
+  return http.get<{ id: string; version: number; status: string; package: Record<string, unknown> }>(
+    `/admin/preparation/packages/${id}/preview`,
+  );
+}

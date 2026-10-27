@@ -11,25 +11,16 @@ import {
   tierWhyReason,
 } from '../ai/learner-tier';
 import { requirementsForStack } from '../ai/stack-lanes';
-import { fallbackOutline, guidanceLevelFrom } from '../ai/skill-guidance';
 import { LlmService } from '../ai/llm.service';
 import { FitScoreService } from '../ai/fit-score.service';
 import { ProgressService } from '../progress/progress.service';
-import { GithubAnalyzeService } from '../web/github-analyze.service';
 import { RoadmapCorpusService } from '../web/roadmap-corpus.service';
-import { RagService } from '../rag/rag.service';
-import {
-  checkBand,
-  hoursForTopic,
-  localQuestions,
-  prepareWhere,
-  questionCountForPhase,
-  scoreAnswers,
-} from '../ai/lesson-check';
-import type { PracticeAnswerDto } from './dto/practice.dto';
+import { hoursForTopic, prepareWhere } from '../ai/lesson-check';
 import { withTimeout } from '../rag/qdrant-client';
 import { marketFlags } from '../market/market.flags';
+import { marketDemandSentence, selectMarketPlanSkills } from '../market/compare/compare';
 import { MarketCompareService } from '../market/compare/market-compare.service';
+import { LearningResourceService } from '../learner/learning-resource.service';
 
 @Injectable()
 export class SkillGapService {
@@ -42,9 +33,8 @@ export class SkillGapService {
     private readonly fit: FitScoreService,
     private readonly progress: ProgressService,
     private readonly corpus: RoadmapCorpusService,
-    private readonly rag: RagService,
-    private readonly github: GithubAnalyzeService,
     private readonly marketCompare: MarketCompareService,
+    private readonly learningResources: LearningResourceService,
   ) {}
 
   async list(userId: string) {
@@ -68,204 +58,6 @@ export class SkillGapService {
     }
   }
 
-  async lesson(userId: string, gapId: string, phase?: string) {
-    const gap = await this.prisma.skillGap.findFirst({
-      where: { id: gapId, userId },
-      include: { skill: true },
-    });
-    if (!gap) {
-      throw new NotFoundException({ error: 'SKILL_GAP_NOT_FOUND', message: 'Skill gap not found' });
-    }
-    const goal = await this.prisma.careerGoal.findFirst({
-      where: { userId, isActive: true },
-      include: { career: true },
-    });
-    const role = goal?.career.title ?? 'your target role';
-    const ev = await this.evidence.forUser(userId);
-    const place = ev.stackLabel || role;
-    const profile = await this.prisma.profile.findUnique({
-      where: { userId },
-      include: { userSkills: { include: { skill: true } } },
-    });
-    const us =
-      profile?.userSkills.find((s) => s.skillId === gap.skillId) ??
-      profile?.userSkills.find((s) => skillMatches(gap.skill.name, [s.skill.name]));
-    let proficiency = us?.proficiency ?? 0;
-    if (skillMatches(gap.skill.name, ev.known)) {
-      proficiency = Math.max(proficiency, 55);
-    }
-    if (gap.currentStatus === SkillStatus.NEEDS_IMPROVEMENT) proficiency = Math.max(proficiency, 40);
-    if (gap.currentStatus === SkillStatus.GOOD) proficiency = Math.max(proficiency, 55);
-    if (gap.currentStatus === SkillStatus.STRONG) proficiency = Math.max(proficiency, 75);
-
-    const evidenced = skillMatches(gap.skill.name, ev.known) || proficiency >= 40;
-    const level = guidanceLevelFrom(gap.currentStatus, proficiency);
-    const edu = String(profile?.educationLevel ?? 'UNDERGRADUATE');
-    const band = checkBand(edu, ev.seniority);
-    const where = prepareWhere(gap.skill.name, place, String(profile?.learningStyle ?? 'PROJECT'));
-    const qCount = questionCountForPhase(phase);
-    const hours = hoursForTopic(gap.skill.name, gap.required === false);
-    const questions = localQuestions(gap.skill.name, place, level, band, qCount, phase);
-    let outline = fallbackOutline(gap.skill.name, place, level);
-
-    if (this.llm.isConfigured()) {
-      try {
-        const ragNotes = await withTimeout(this.ragHints(userId, gap.skill.name, place), 4_000, 'RAG hints').catch(
-          () => [] as string[],
-        );
-        const levelHint = `Stack: ${place}. Window: ${phase ?? 'D7'} with ${qCount} checks. Teach ${gap.skill.name} as used in ${place}. No install tours or syllabus site names.`;
-        const text = await this.llm.complete(
-          [
-            {
-              role: 'system',
-              content:
-                'Write a short study outline for one skill inside the learner stack. Return 5 to 8 short numbered lines. No markdown. Never mention Wikipedia, roadmap.sh, or other third-party syllabus sites.',
-            },
-            {
-              role: 'user',
-              content: `Skill: ${gap.skill.name}. Stack: ${place}. Role: ${role}. ${levelHint}${ragNotes.length ? ` Local notes: ${ragNotes.join(' | ')}` : ''}`,
-            },
-          ],
-          { temperature: 0.3, timeoutMs: 22_000 },
-        );
-        const parsed = text
-          .split('\n')
-          .map((l) => l.replace(/^\d+[.)]\s*/, '').trim())
-          .filter((l) => l.length > 8 && !/wikipedia|roadmap\.sh/i.test(l))
-          .slice(0, 8);
-        if (parsed.length) outline = parsed;
-      } catch (err) {
-        this.logger.debug(`Lesson outline LLM skipped: ${(err as Error).message}`);
-      }
-    }
-    const windowLabel = questionCountForPhase(phase) <= 7 ? '7 days' : `${questionCountForPhase(phase)} checks`;
-    return {
-      skill: gap.skill.name,
-      learn: `${gap.skill.name} in ${place}. This window has ${qCount} checks and gets harder as the window grows. About ${hours} hours for the topic.`,
-      practice: `Do one real ${place} task that uses ${gap.skill.name}, including one thing that can go wrong. ${windowLabel}.`,
-      example: `Proof is a ${place} diff, test, or log — not a definition of ${gap.skill.name}.`,
-      outline,
-      level,
-      evidenced,
-      band,
-      seniority: ev.seniority,
-      educationLevel: edu,
-      where,
-      questions: questions.map((q) => ({ id: q.id, prompt: q.prompt })),
-      phase: phase ?? 'D7',
-      questionCount: qCount,
-      evidencePrompt:
-        'Paste a public GitHub URL (https://github.com/owner/repo). We open that repo, read the code and libraries (Jest, Express, React, tests, and so on), and mark this gap only when the work shows this skill. Written answers are optional when the repo is enough.',
-    };
-  }
-
-  async practice(userId: string, gapId: string, note?: string, answers?: PracticeAnswerDto[]) {
-    const gap = await this.prisma.skillGap.findFirst({
-      where: { id: gapId, userId },
-      include: { skill: true },
-    });
-    if (!gap) {
-      throw new NotFoundException({ error: 'SKILL_GAP_NOT_FOUND', message: 'Skill gap not found' });
-    }
-    const goal = await this.prisma.careerGoal.findFirst({
-      where: { userId, isActive: true },
-      include: { career: true },
-    });
-    const role = goal?.career.title ?? 'your target role';
-    const proof = await this.judgeGithubProof(gap.skill.name, note);
-    if (proof.opened && proof.passed) {
-      await this.applySkillPractice(userId, gap.skill.name, gap.skillId, note, proof.score >= 85 ? 22 : 15, true);
-      void this.recalculate(userId).catch((err: Error) => {
-        this.logger.warn(`Background gap recalc: ${err.message}`);
-      });
-      const gaps = await this.gapsForUser(userId);
-      return { gaps, check: { score: proof.score, passed: true, feedback: proof.feedback } };
-    }
-
-    const questions = (answers ?? []).map((a) => ({
-      id: a.id,
-      prompt: a.prompt?.trim() || a.id,
-      rubric: 'Working explanation, not the skill name repeated.',
-    }));
-    const filled = (answers ?? []).filter((a) => a.text.trim().length > 12);
-    if (proof.opened && !proof.passed && filled.length === 0) {
-      const gaps = await this.gapsForUser(userId);
-      return { gaps, check: { score: proof.score, passed: false, feedback: proof.feedback } };
-    }
-    if (!proof.opened && filled.length === 0) {
-      const gaps = await this.gapsForUser(userId);
-      return {
-        gaps,
-        check: {
-          score: 0,
-          passed: false,
-          feedback:
-            'Paste a public GitHub repo that shows this skill, or answer the checks. A skill name alone is not proof.',
-        },
-      };
-    }
-    const local = scoreAnswers(gap.skill.name, questions, answers ?? []);
-    let score = local.score;
-    let feedback = local.feedback;
-    if (answers?.length && filled.length && this.llm.isConfigured()) {
-      try {
-        const judged = await this.llm.complete(
-          [
-            {
-              role: 'system',
-              content:
-                'You grade short career-skill answers. Pass only when the text shows the person understands the idea in their own words. Repeating the skill name, one-line definitions, or empty phrases fail. JSON only: {"score":number,"feedback":string}. score 0-100. 70 or more means the answer is actually right.',
-            },
-            {
-              role: 'user',
-              content: `Skill ${gap.skill.name} for ${role}. ${JSON.stringify(
-                questions.map((q) => ({
-                  q: q.prompt,
-                  a: answers.find((item) => item.id === q.id)?.text ?? '',
-                })),
-              )}`,
-            },
-          ],
-          { temperature: 0.1, timeoutMs: 20_000 },
-        );
-        const parsed = JSON.parse(judged.replace(/```json|```/g, '').trim()) as {
-          score?: number;
-          feedback?: string;
-        };
-        if (typeof parsed.score === 'number') {
-          score = Math.round(Math.max(0, Math.min(100, parsed.score)));
-        }
-        if (parsed.feedback) feedback = String(parsed.feedback).slice(0, 500);
-      } catch {
-        feedback = `${local.feedback} The model check was unavailable, so this used a stricter local reading.`;
-      }
-    }
-    if (proof.opened && !proof.passed) {
-      feedback = `${proof.feedback} ${feedback}`.slice(0, 700);
-    }
-    const passed = score >= 70;
-    if (!passed) {
-      const gaps = await this.gapsForUser(userId);
-      return { gaps, check: { score, passed, feedback } };
-    }
-    const bump = score >= 85 ? 22 : 15;
-    await this.applySkillPractice(userId, gap.skill.name, gap.skillId, note, bump, true);
-    void this.recalculate(userId).catch((err: Error) => {
-      this.logger.warn(`Background gap recalc: ${err.message}`);
-    });
-    const gaps = await this.gapsForUser(userId);
-    return { gaps, check: { score, passed, feedback } };
-  }
-
-  private async gapsForUser(userId: string) {
-    const gaps = await this.prisma.skillGap.findMany({
-      where: { userId },
-      include: { skill: true },
-      orderBy: [{ priority: 'asc' }, { estimatedHours: 'desc' }],
-    });
-    return this.present(userId, gaps);
-  }
-
   async applySkillPractice(
     userId: string,
     skillName: string,
@@ -273,6 +65,7 @@ export class SkillGapService {
     note?: string,
     bump = 15,
     passed = true,
+    onlyTaskIds?: string[],
   ) {
     const name = skillName.trim();
     if (!name) return;
@@ -317,7 +110,8 @@ export class SkillGapService {
     const tasks = await this.prisma.roadmapTask.findMany({
       where: { roadmap: { userId }, status: { not: TaskStatus.COMPLETED } },
     });
-    const matched = tasks.filter((t) => skillMatches(name, [t.relatedSkill ?? '', t.title]));
+    const named = tasks.filter((t) => skillMatches(name, [t.relatedSkill ?? '', t.title]));
+    const matched = onlyTaskIds ? named.filter((t) => onlyTaskIds.includes(t.id)) : named;
     if (passed && matched.length) {
       await this.prisma.roadmapTask.updateMany({
         where: { id: { in: matched.map((t) => t.id) } },
@@ -402,7 +196,7 @@ export class SkillGapService {
     const coreTitles = goal.career.coreTopics ?? [];
     const tier = ev.learnerTier;
     const tierReason = tierWhyReason(tier);
-    type PlannedItem = { name: string; skillId?: string; band: Band; stretch: boolean };
+    type PlannedItem = { name: string; skillId?: string; band: Band; stretch: boolean; marketLine?: string };
     const finalPlanned: PlannedItem[] = [];
     const finalSeen = new Set<string>();
 
@@ -432,6 +226,27 @@ export class SkillGapService {
       }
     }
 
+    if (marketFlags.skillGapField()) {
+      try {
+        const view = await this.marketCompare.compare(goal.careerId, 'all');
+        if (view.period) {
+          for (const row of selectMarketPlanSkills(view.sets.marketOnly, ev.known)) {
+            const advanced = classifyTopic(row.name, coreTitles) === 'advanced';
+            pushFinal({
+              name: row.name,
+              skillId: row.skillId ?? undefined,
+              band: 'applied',
+              stretch: advanced,
+              marketLine: marketDemandSentence(row),
+            });
+          }
+        }
+      } catch (err) {
+        this.logger.debug(`Market plan skills skipped: ${(err as Error).message}`);
+      }
+    }
+
+    const hourMap = await this.estimateHours(finalPlanned);
     const created: Array<{
       id: string;
       skill: { id: string; name: string; category: string };
@@ -467,11 +282,15 @@ export class SkillGapService {
           : item.band === 'week'
             ? Priority.HIGH
             : Priority.MEDIUM;
-      const estimatedHours = !open ? 1 : hoursForTopic(item.name, stretch);
+      const estimatedHours = !open
+        ? 1
+        : hourMap.get(item.name.toLowerCase()) ?? hoursForTopic(item.name, stretch);
       const window =
         item.band === 'week' ? 'Next 7 days' : stretch ? 'Optional stretch' : 'Next 30 days';
       const where = prepareWhere(item.name, stackName, String(profile.learningStyle ?? 'PROJECT'));
-      const line = `${item.name} is a ${stackName} topic for ${window}. About ${estimatedHours} hours.`;
+      const line = item.marketLine
+        ? `${item.marketLine} Focused practice is about ${estimatedHours} hours, in the ${window.toLowerCase()} band.`
+        : `${item.name} is on your ${stackName} plan for ${window.toLowerCase()}. Focused practice is about ${estimatedHours} hours.`;
       const gap = await this.prisma.skillGap.create({
         data: {
           userId,
@@ -486,11 +305,13 @@ export class SkillGapService {
               ? `${item.name} proficiency ${proficiency}.`
               : `No saved skill named ${item.name} yet.`,
             targetCareer: goal.career.title,
-            marketEvidence: line,
-            reason: tierReason,
+            marketEvidence: item.marketLine ?? line,
+            reason: item.marketLine ?? tierReason,
             practice: `Build or change one public repo that uses ${item.name}, including one thing that can go wrong.`,
             example: `Proof is a public GitHub URL. We open the repo and mark this only if the code shows ${item.name}.`,
-            solution: `Learn ${item.name} from its own docs, do one ${stackName} task, then paste https://github.com/owner/repo.`,
+            solution: item.marketLine
+              ? `${item.marketLine} Practice ${item.name} on one small ${stackName} task, then paste the public GitHub link for that work.`
+              : `Practice ${item.name} on one small ${stackName} task, then paste the public GitHub link for that work. We open the repository and mark this skill only when the code uses it.`,
             learnWhere: where,
           },
         },
@@ -504,96 +325,44 @@ export class SkillGapService {
     return this.present(userId, created);
   }
 
-  private githubUrls(text: string) {
-    return [...text.matchAll(/https?:\/\/(?:www\.)?github\.com\/[\w.-]+\/[\w.-]+/gi)].map((m) => m[0]);
-  }
-
-  /**
-   * Open a public GitHub URL from the evidence note and decide if that repo shows the gap skill.
-   * A small project counts: Jest tests, an Express route, a React page, a README that names the work.
-   */
-  private async judgeGithubProof(skill: string, note?: string) {
-    const urls = this.githubUrls(note ?? '');
-    if (!urls.length) {
-      return { opened: false, passed: false, score: 0, feedback: '' };
-    }
-    const analysis = await this.github.analyzeUrl(urls[0], { skipLlm: true }).catch(() => null);
-    if (!analysis) {
-      return {
-        opened: true,
-        passed: false,
-        score: 0,
-        feedback: `Could not open ${urls[0]}. Use a public repo (https://github.com/owner/name), not a private repo or a profile page.`,
-      };
-    }
-    const hay = [
-      ...analysis.skills,
-      ...Object.keys(analysis.languages),
-      ...analysis.manifests,
-      analysis.summary,
-    ];
-    const local = skillMatches(skill, hay);
-    const seen = [...new Set(analysis.skills)].slice(0, 12).join(', ') || 'no libraries named';
-    let score = local ? 84 : 32;
-    let feedback = local
-      ? `Opened ${analysis.url}. This repo shows ${skill} (${seen}). The gap is marked from that work.`
-      : `Opened ${analysis.url}. We read the files and found: ${seen}. That work does not show ${skill} yet.`;
-
-    const needsLlmJudge = !local && score < 70;
-    if (needsLlmJudge && this.llm.isConfigured()) {
-      try {
-        const judged = await this.llm.complete(
+  private async estimateHours(items: Array<{ name: string; stretch: boolean }>) {
+    const out = new Map<string, number>();
+    for (const item of items) out.set(item.name.toLowerCase(), hoursForTopic(item.name, item.stretch));
+    if (!this.llm.isConfigured() || items.length === 0) return out;
+    try {
+      const text = await withTimeout(
+        this.llm.complete(
           [
             {
               role: 'system',
               content:
-                'You check whether a public GitHub repo is real work that uses one named skill. A small student project counts: tests (Jest, pytest), one API route, one UI page, or a README that describes that skill in the code. Do not demand a large production system. Do not pass just because the README repeats the skill name with no code. JSON only: {"match":boolean,"score":number,"feedback":string}. score 0-100. 70 or more means the repo shows the skill.',
+                'Estimate focused practice hours for a student who already has a target role. Each skill gets its own integer from 2 to 20, based on how much new work it usually takes to show in a small project. Do not give every skill the same number. JSON only: {"hours":[{"name":"exact skill name","hours":8}]}',
             },
             {
               role: 'user',
-              content: JSON.stringify({
-                skill,
-                url: analysis.url,
-                languages: analysis.languages,
-                skills: analysis.skills,
-                hasTests: analysis.hasTests,
-                manifests: analysis.manifests,
-                summary: analysis.summary.slice(0, 1500),
-              }),
+              content: items.map((item) => `${item.name}${item.stretch ? ' (later stretch topic)' : ''}`).join('\n'),
             },
           ],
-          { temperature: 0.1, timeoutMs: 18_000 },
-        );
-        const parsed = JSON.parse(judged.replace(/```json|```/g, '').trim()) as {
-          match?: boolean;
-          score?: number;
-          feedback?: string;
-        };
-        if (typeof parsed.score === 'number') {
-          score = Math.round(Math.max(0, Math.min(100, parsed.score)));
-        }
-        if (parsed.match === true) score = Math.max(score, 75);
-        if (parsed.match === false && !local) score = Math.min(score, 64);
-        if (parsed.feedback) feedback = `${String(parsed.feedback).slice(0, 420)} Repo: ${analysis.url}`;
-      } catch {
-        feedback = `${feedback} The model check was unavailable, so this used the libraries and files we could read.`;
+          { temperature: 0.2 },
+        ),
+        60_000,
+        'Hour estimate',
+      );
+      const start = text.indexOf('{');
+      const end = text.lastIndexOf('}');
+      if (start < 0 || end <= start) return out;
+      const parsed = JSON.parse(text.slice(start, end + 1)) as { hours?: Array<{ name?: string; hours?: number }> };
+      for (const row of parsed.hours ?? []) {
+        const name = row.name?.trim().toLowerCase();
+        const hours = Math.round(Number(row.hours));
+        if (!name || !Number.isFinite(hours)) continue;
+        if (hours < 2 || hours > 24) continue;
+        out.set(name, hours);
       }
+    } catch (err) {
+      this.logger.warn(`Hour estimate used topic fallback: ${(err as Error).message}`);
     }
-
-    return { opened: true, passed: score >= 70, score, feedback };
-  }
-
-  private async ragHints(userId: string, skill: string, role: string) {
-    try {
-      const hits = await this.rag.retrieve(`${skill} ${role}`, userId, 4);
-      return hits
-        .map((h) => h.content.replace(/\s+/g, ' ').trim())
-        .filter((c) => c.length > 20 && !/syllabus topic|wikipedia|roadmap\.sh/i.test(c))
-        .map((c) => c.slice(0, 180))
-        .slice(0, 3);
-    } catch {
-      return [] as string[];
-    }
+    return out;
   }
 
   private async present(
@@ -613,6 +382,7 @@ export class SkillGapService {
       include: { userSkills: { include: { skill: true } } },
     });
     const skills = profile?.userSkills ?? [];
+    const resourcesBySkill = await this.learningResources.forSkills(gaps.map((g) => g.skill.id)).catch(() => new Map());
     const statusScore = (status: SkillStatus) =>
       status === SkillStatus.STRONG ? 90 : status === SkillStatus.GOOD ? 70 : status === SkillStatus.NEEDS_IMPROVEMENT ? 40 : 8;
 
@@ -641,8 +411,10 @@ export class SkillGapService {
         why.learnWhere = prepareWhere(g.skill.name, 'your stack', 'PROJECT');
       }
       const market = marketBySkill.get(g.skill.id);
+      const resources = resourcesBySkill.get(g.skill.id);
       return {
         id: g.id,
+        skillId: g.skill.id,
         skill: g.skill.name,
         category: g.skill.category,
         currentStatus: g.currentStatus,
@@ -653,6 +425,7 @@ export class SkillGapService {
         stretch: !g.required,
         why,
         ...(market ? { market } : {}),
+        ...(resources?.length ? { resources } : {}),
       };
     });
   }

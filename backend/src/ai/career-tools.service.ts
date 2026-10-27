@@ -5,6 +5,7 @@ import { EvidenceService } from './evidence.service';
 import { SarkariJudgeService } from '../sarkari/sarkari-judge.service';
 import { SarkariRagService } from '../sarkari/sarkari-rag.service';
 import { belongsToOtherLane } from './stack-lanes';
+import { SnapshotDiffService } from '../learner/snapshot-diff.service';
 
 @Injectable()
 export class CareerToolsService {
@@ -13,6 +14,7 @@ export class CareerToolsService {
     private readonly evidence: EvidenceService,
     private readonly sarkariJudge: SarkariJudgeService,
     private readonly sarkariRag: SarkariRagService,
+    private readonly snapshotDiff: SnapshotDiffService,
   ) {}
 
   async getMyProfile(userId: string) {
@@ -101,6 +103,10 @@ export class CareerToolsService {
     } catch (err) {
       return JSON.stringify({ error: (err as Error).message });
     }
+  }
+
+  async marketSnapshotDiff(userId: string) {
+    return JSON.stringify(await this.snapshotDiff.forUser(userId));
   }
 
   async getSkillGaps(userId: string) {

@@ -16,7 +16,7 @@ const extractionSchema = z.object({
         name: z.string(),
         level: z.enum(['REQUIRED', 'PREFERRED', 'NICE_TO_HAVE']),
         evidence: z.string(),
-        yearsRequired: z.number().nullable().optional(),
+        yearsRequired: z.number().optional(),
         confidence: z.number().min(0).max(1),
       }),
     )
@@ -54,21 +54,22 @@ export class MarketLlmExtractor {
     const cfg = await this.config.get('extraction');
     if (!(await takeLlmBudget(this.redis, cfg.llmDailyLimit))) return { skipped: 'BUDGET' };
     try {
-      const result = await this.llm
-        .chat({ temperature: 0 })
-        .withStructuredOutput(extractionSchema)
-        .invoke([
+      const result = await this.llm.structured(
+        extractionSchema,
+        [
           new SystemMessage(
             'Extract the technical skills a job posting asks for: languages, frameworks, libraries, databases, cloud, ' +
               'tools and engineering practices. Only skills written in the posting; never infer. ' +
               'level: REQUIRED for requirements/must-have, PREFERRED for preferred/bonus/nice-to-have wording, ' +
               'NICE_TO_HAVE for skills only mentioned in passing (tech stack, about us). ' +
               'evidence: an exact quote of 5-150 characters copied from the posting that contains the skill. ' +
-              'confidence: 0-1. yearsRequired only when the posting states years for that skill.',
+              'confidence: 0-1. Omit yearsRequired unless the posting states a number of years for that skill. Never send null.',
           ),
           new HumanMessage(description.slice(0, cfg.maxDescriptionChars)),
-        ]);
-      return { skills: (result as z.infer<typeof extractionSchema>).skills };
+        ],
+        { temperature: 0, label: 'Market skill extract' },
+      );
+      return { skills: result.skills };
     } catch (err) {
       this.logger.warn(`LLM extraction failed: ${(err as Error).message}`);
       return { skipped: 'ERROR', error: (err as Error).message };

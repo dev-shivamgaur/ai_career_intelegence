@@ -4,6 +4,7 @@ import { createHash } from 'crypto';
 import { Document } from '@langchain/core/documents';
 import { QdrantVectorStore } from '@langchain/qdrant';
 import { QdrantClient } from '@qdrant/js-client-rest';
+import { preferIpv4Loopback } from '../common/loopback';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmbeddingService } from '../ai/embedding.service';
 import { createAppQdrantClient, withTimeout } from '../rag/qdrant-client';
@@ -37,7 +38,7 @@ export class SarkariRagService implements OnModuleInit {
   }
 
   get url() {
-    return this.config.get<string>('QDRANT_URL', 'http://localhost:6333');
+    return preferIpv4Loopback(this.config.get<string>('QDRANT_URL', 'http://127.0.0.1:6333'));
   }
 
   async onModuleInit() {

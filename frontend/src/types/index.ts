@@ -198,6 +198,7 @@ export interface WhyExplanation {
 
 export interface SkillGapItem {
   id: string;
+  skillId?: string;
   skill: string;
   category: string;
   currentStatus: SkillStatus;
@@ -215,30 +216,7 @@ export interface SkillGapItem {
     wilsonLower: number | null;
     trend: string | null;
   };
-}
-
-export interface SkillLesson {
-  skill: string;
-  learn: string;
-  practice: string;
-  example: string;
-  outline: string[];
-  level?: string;
-  evidenced?: boolean;
-  band?: string;
-  seniority?: "none" | "intern" | "job";
-  educationLevel?: string;
-  where?: string[];
-  questions?: Array<{ id: string; prompt: string }>;
-  evidencePrompt?: string;
-  phase?: string;
-  questionCount?: number;
-}
-
-export interface PracticeCheck {
-  score: number;
-  passed: boolean;
-  feedback: string;
+  resources?: Array<{ title: string; url: string; kind: string }>;
 }
 
 export interface RoadmapTask {
@@ -314,6 +292,7 @@ export interface ResearchSource {
   keyFinding: string;
   usedInRecommendation: boolean;
   confidence: number;
+  url?: string;
 }
 
 export interface ResearchTimelineEvent {

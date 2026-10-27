@@ -1,3 +1,4 @@
+import { preferIpv4Loopback } from '../common/loopback';
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
@@ -18,7 +19,7 @@ export class RedisService implements OnModuleDestroy {
       return;
     }
     try {
-      this.client = new Redis(url, {
+      this.client = new Redis(preferIpv4Loopback(url), {
         maxRetriesPerRequest: 1,
         enableOfflineQueue: false,
         retryStrategy: () => null,

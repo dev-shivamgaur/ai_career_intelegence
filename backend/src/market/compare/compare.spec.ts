@@ -1,4 +1,4 @@
-import { compareRoadmapMarket, inMarket, isMismatch } from './compare';
+import { compareRoadmapMarket, inMarket, isMismatch, selectMarketPlanSkills, topMarketSkills } from './compare';
 
 const road = (skillId: string, name: string, importance: string, type: string) => ({ skillId, name, importance, type });
 const market = (skillId: string, name: string, demandPct: number) => ({
@@ -35,5 +35,49 @@ describe('compareRoadmapMarket', () => {
   it('importance mismatch: required-but-rare and optional-but-common', () => {
     expect(sets.mismatch.map((s) => s.name)).toEqual(['CSS', 'React']);
     expect(isMismatch(road('sql', 'SQL', 'HIGH', 'REQUIRED'), market('sql', 'SQL', 0.4))).toBe(false);
+  });
+});
+
+describe('selectMarketPlanSkills', () => {
+  const row = (name: string, companies: number, demandPct: number, trend: string | null) => ({
+    skillId: name,
+    name,
+    demandPct,
+    jobCount: 4,
+    companies,
+    n: 20,
+    wilsonLower: 0.1,
+    roadmapImportance: null,
+    roadmapType: null,
+    trend,
+  });
+
+  it('keeps market skills with enough companies, drops evidenced names, and caps after trend', () => {
+    const picked = selectMarketPlanSkills(
+      [
+        row('Kafka', 4, 0.2, 'STABLE'),
+        row('Rust', 2, 0.9, 'INCREASING'),
+        row('GraphQL', 5, 0.1, 'EMERGING'),
+        row('SQL', 8, 0.5, 'INCREASING'),
+        row('A', 3, 0.05, 'DECREASING'),
+        row('B', 3, 0.06, 'DECREASING'),
+        row('C', 3, 0.07, 'DECREASING'),
+        row('D', 3, 0.08, 'DECREASING'),
+        row('E', 3, 0.09, 'DECREASING'),
+        row('F', 3, 0.1, 'DECREASING'),
+        row('G', 3, 0.11, 'DECREASING'),
+      ],
+      ['sql'],
+    );
+    expect(picked.map((s) => s.name)).toEqual(['GraphQL', 'Kafka', 'G', 'F', 'E', 'D', 'C', 'B']);
+    expect(picked.some((s) => s.name === 'Rust' || s.name === 'SQL' || s.name === 'A')).toBe(false);
+  });
+
+  it('ranks the dashboard list by demand, including skills the learner already has', () => {
+    const top = topMarketSkills({
+      overlap: [row('SQL', 6, 0.4, 'STABLE')],
+      marketOnly: [row('Kafka', 4, 0.5, 'EMERGING'), row('Noise', 1, 0.9, 'INCREASING')],
+    });
+    expect(top.map((s) => s.name)).toEqual(['Kafka', 'SQL']);
   });
 });

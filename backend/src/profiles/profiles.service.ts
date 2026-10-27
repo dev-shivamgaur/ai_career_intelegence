@@ -7,6 +7,10 @@ import { ProjectInputDto, UpdateProfileDto } from './dto/update-profile.dto';
 import { EvidenceService } from '../ai/evidence.service';
 import { tierPathCopy } from '../ai/learner-tier';
 import { SkillMatchAgentService } from '../ai/skill-match-agent.service';
+import { FitScoreService } from '../ai/fit-score.service';
+import { ProgressService } from '../progress/progress.service';
+import { PersonalRoadmapService } from '../learner/personal-roadmap.service';
+import { ResearchService } from '../research/research.service';
 
 @Injectable()
 export class ProfilesService {
@@ -18,6 +22,10 @@ export class ProfilesService {
     private readonly corpus: RoadmapCorpusService,
     private readonly evidence: EvidenceService,
     private readonly matchAgent: SkillMatchAgentService,
+    private readonly personalRoadmap: PersonalRoadmapService,
+    private readonly progress: ProgressService,
+    private readonly fit: FitScoreService,
+    private readonly research: ResearchService,
   ) {}
 
   private readonly profileInclude = {
@@ -403,6 +411,18 @@ export class ProfilesService {
     });
     await this.skillGaps.safeRecalculate(userId);
     await this.corpus.ensureUserRoadmap(userId);
+    await this.personalRoadmap.generate(userId).catch((err: Error) => {
+      this.logger.warn(`Personal roadmap skip: ${err.message}`);
+    });
+    await this.progress.rebuild(userId).catch((err: Error) => {
+      this.logger.warn(`Progress rebuild skip: ${err.message}`);
+    });
+    await this.fit.persist(userId).catch((err: Error) => {
+      this.logger.warn(`Fit score skip: ${err.message}`);
+    });
+    await this.research.create(userId, {}).catch((err: Error) => {
+      this.logger.warn(`Research refresh skip: ${err.message}`);
+    });
   }
 
   private async computeCompletion(

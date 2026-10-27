@@ -7,15 +7,22 @@ import { DashboardSkeleton } from "@/components/ui/Skeleton";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import * as careerApi from "@/services/api/careerApi";
 import { useToast } from "@/store/hooks";
-import { useState } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 export function SkillGapPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const skillFilter = params.get("skill")?.trim() ?? "";
   const { push } = useToast();
   const { data, loading, error, errorCode, reload, setData } = useAsyncData(() => careerApi.getSkillGaps());
   const [generating, setGenerating] = useState(false);
+
+  useEffect(() => {
+    if (!skillFilter) return;
+    document.getElementById("skill-search-hit")?.scrollIntoView({ block: "start" });
+  }, [skillFilter, data]);
 
   async function generate() {
     setGenerating(true);
@@ -66,20 +73,28 @@ export function SkillGapPage() {
     d.currentStatus === "missing" || d.currentStatus === "needs_improvement";
   const thisWeek = data.filter((d) => !d.stretch && d.priority === "high" && open(d));
   const nextUp = data.filter((d) => !d.stretch && d.priority !== "high" && open(d));
-  const chart = [...thisWeek, ...nextUp].slice(0, 12).map((d) => ({
-    skill: d.skill.length > 18 ? `${d.skill.slice(0, 16)}…` : d.skill,
+  const slices = ["#2B2B2B", "#5C4E4E", "#988686", "#8AA89A", "#AFEEEE", "#C4C4C4"];
+  const chart = [...thisWeek, ...nextUp].slice(0, 8).map((d, i) => ({
+    skill: d.skill,
     hours: Math.max(1, Number(d.estimatedHours || (d.priority === "high" ? 6 : 8))),
-    fill: d.priority === "high" ? "#1f4bd4" : "#94a3b8",
+    fill: slices[i % slices.length],
   }));
   const toClose = thisWeek;
   const stretch = data.filter((d) => d.stretch);
   const categories = [...new Set(data.filter((d) => !d.stretch).map((d) => d.category || "Other"))];
+  const needle = skillFilter.toLowerCase();
+  const matched = skillFilter
+    ? data.filter((item) => {
+        const name = item.skill.toLowerCase();
+        return name.includes(needle) || needle.includes(name);
+      })
+    : [];
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Skill gap"
-        description="Topics follow your stack, not a generic beginner list. This week is the small app layer. 30 days is applied work. Longer windows are tougher and ask more questions."
+        description="Open topics for your stack. This week is the short list. Later topics stay on the plan but do not jump the queue."
         action={
           <Button variant="outline" disabled={generating} onClick={() => void generate()}>
             {generating ? "Recalculating…" : "Recalculate"}
@@ -87,71 +102,106 @@ export function SkillGapPage() {
         }
       />
 
-      {chart.length > 0 && (
+      {skillFilter ? (
+        <Card id="skill-search-hit">
+          <CardHeader
+            title={matched.length ? skillFilter : "Not found"}
+            description={
+              matched.length
+                ? "This is the skill from your header search. It is already on your skill gap."
+                : `${skillFilter} is not on your skill gap. Search only finds skills, roadmap tasks, and jobs already saved for you.`
+            }
+            action={
+              <Button variant="outline" size="sm" onClick={() => navigate("/skill-gap")}>
+                Show all skills
+              </Button>
+            }
+          />
+          {matched.length > 0 && (
+            <CardBody className="space-y-3">
+              {matched.map((item) => (
+                <SkillGapCard key={`hit-${item.id || item.skill}`} item={item} />
+              ))}
+            </CardBody>
+          )}
+        </Card>
+      ) : null}
+
+      {!skillFilter && chart.length > 0 && (
       <Card>
         <CardHeader
-          title="Hours for open topics"
-          description="Blue bars are the 7-day topics. Grey bars are the 30-day topics. Tougher topics are listed below."
+          title="Practice time"
+          description="Each slice is the focused hours for one open topic. The list under the chart is the order to follow."
         />
-        <CardBody className="h-[min(28rem,70vh)] min-h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chart} layout="vertical" margin={{ left: 8, right: 12, top: 8, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-              <XAxis type="number" domain={[0, 16]} unit="h" />
-              <YAxis type="category" dataKey="skill" width={110} tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="hours" radius={[0, 4, 4, 0]}>
-                {chart.map((entry) => (
-                  <Cell key={entry.skill} fill={entry.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+        <CardBody className="grid gap-4 md:grid-cols-[16rem_1fr] md:items-center">
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={chart} dataKey="hours" nameKey="skill" innerRadius={58} outerRadius={88} paddingAngle={2} stroke="none">
+                  {chart.map((entry) => (
+                    <Cell key={entry.skill} fill={entry.fill} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => [`${value} hours`, "Practice"]} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <ul className="space-y-2 text-sm">
+            {chart.map((entry) => (
+              <li key={entry.skill} className="flex items-center justify-between gap-3">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: entry.fill }} />
+                  <span className="truncate">{entry.skill}</span>
+                </span>
+                <span className="shrink-0 text-[#5C4E4E] dark:text-[#988686]">{entry.hours} h</span>
+              </li>
+            ))}
+          </ul>
         </CardBody>
       </Card>
       )}
 
-      {toClose.length > 0 && (
+      {!skillFilter && toClose.length > 0 && (
         <section>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">This week</h2>
-          <p className="mb-3 text-sm text-slate-500">
-            Finish these first. Each one is a few hours. Topics you already show on your resume are not listed here.
+          <h2 className="mb-2 text-sm font-semibold text-ink dark:text-[#D1D0D0]">This week</h2>
+          <p className="mb-3 text-sm text-[#5C4E4E] dark:text-[#988686]">
+            Finish these first. Hours come from the plan for each topic. Skills you already show are not listed here.
           </p>
           <div className="space-y-3">
             {toClose.map((item) => (
-              <SkillGapCard key={`close-${item.id || item.skill}`} item={item} onPracticed={setData} />
+              <SkillGapCard key={`close-${item.id || item.skill}`} item={item} />
             ))}
           </div>
         </section>
       )}
 
-      {nextUp.length > 0 && (
+      {!skillFilter && nextUp.length > 0 && (
         <section>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Next 30 days</h2>
-          <p className="mb-3 text-sm text-slate-500">Applied topics for this stack. The lesson for this window has more checks than the 7-day set.</p>
+          <h2 className="mb-2 text-sm font-semibold text-ink dark:text-[#D1D0D0]">Next 30 days</h2>
+          <p className="mb-3 text-sm text-[#5C4E4E] dark:text-[#988686]">Applied topics for this stack. The 30-day lesson asks more than the one-week set.</p>
           <div className="space-y-3">
             {nextUp.map((item) => (
-              <SkillGapCard key={`next-${item.id || item.skill}`} item={item} onPracticed={setData} />
+              <SkillGapCard key={`next-${item.id || item.skill}`} item={item} />
             ))}
           </div>
         </section>
       )}
 
-      {stretch.length > 0 && (
+      {!skillFilter && stretch.length > 0 && (
         <section>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Tougher topics, 60–180 days</h2>
+          <h2 className="mb-2 text-sm font-semibold text-ink dark:text-[#D1D0D0]">Later topics</h2>
           <p className="mb-3 text-sm text-slate-500">
             These stay on the same stack. Open 60, 90, or 180 days in the lesson to get the longer, harder question set.
           </p>
           <div className="space-y-3">
             {stretch.map((item) => (
-              <SkillGapCard key={`stretch-${item.id || item.skill}`} item={item} onPracticed={setData} />
+              <SkillGapCard key={`stretch-${item.id || item.skill}`} item={item} />
             ))}
           </div>
         </section>
       )}
 
-      {categories.map((cat) => {
+      {!skillFilter && categories.map((cat) => {
         const items = data.filter(
           (d) =>
             !d.stretch &&
@@ -165,7 +215,7 @@ export function SkillGapPage() {
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{cat}</h2>
             <div className="space-y-3">
               {items.map((item) => (
-                <SkillGapCard key={item.id || item.skill} item={item} onPracticed={setData} />
+                <SkillGapCard key={item.id || item.skill} item={item} />
               ))}
             </div>
           </section>

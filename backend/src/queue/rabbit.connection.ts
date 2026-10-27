@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { connect, type Channel, type ChannelModel } from 'amqplib';
+import { preferIpv4Loopback } from '../common/loopback';
 import {
   INGEST_DLQ,
   INGEST_DLX,
@@ -15,19 +16,26 @@ export class RabbitConnection implements OnModuleInit, OnModuleDestroy {
   private connection: ChannelModel | null = null;
   private channel: Channel | null = null;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService) {
+    const url = this.config.get<string>('RABBITMQ_URL');
+    console.log("Rabbitmqurl",url);
+  }
 
   async onModuleInit() {
     const url = this.config.get<string>('RABBITMQ_URL');
+    console.log("Rabbitmqurl",url);
     if (!url) {
       this.logger.warn('RABBITMQ_URL is not set — career ingest jobs cannot be published');
       return;
     }
     try {
-      this.connection = await connect(url);
-      this.connection.on('error', (err) => this.logger.warn(`RabbitMQ connection error: ${err.message}`));
+      this.connection = await connect(preferIpv4Loopback(url));
+      this.connection.on('error', (err) => {
+        console.log("RabbitMQ connection error")
+        this.logger.warn(`RabbitMQ connection error: ${err.message}`)});
       this.channel = await this.connection.createChannel();
       await this.assertTopology(this.channel);
+      console.log("RabbitMQ connection created");
       this.logger.log('RabbitMQ connected');
     } catch (err) {
       this.logger.warn(`RabbitMQ connect failed: ${(err as Error).message}`);

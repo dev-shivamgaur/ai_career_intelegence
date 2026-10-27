@@ -29,6 +29,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let retryAfterSeconds: number | undefined;
     let remainingAttempts: number | undefined;
     let sendsRemaining: number | undefined;
+    let usage: unknown;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -44,6 +45,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         retryAfterSeconds = asInt(obj.retryAfterSeconds);
         remainingAttempts = asInt(obj.remainingAttempts);
         sendsRemaining = asInt(obj.sendsRemaining);
+        if ('usage' in obj) usage = obj.usage;
       }
     } else if (exception instanceof Error) {
       message = exception.message;
@@ -57,6 +59,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ...(retryAfterSeconds != null ? { retryAfterSeconds } : {}),
         ...(remainingAttempts != null ? { remainingAttempts } : {}),
         ...(sendsRemaining != null ? { sendsRemaining } : {}),
+        ...(usage !== undefined ? { usage } : {}),
       },
     });
   }

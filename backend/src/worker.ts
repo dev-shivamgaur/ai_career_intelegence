@@ -1,3 +1,4 @@
+import { config as loadEnv } from 'dotenv';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 
@@ -7,6 +8,7 @@ import { AppModule } from './app.module';
  * Start with: npm run start:worker
  */
 async function bootstrap() {
+  loadEnv();
   process.env.INGEST_WORKER = '1';
   // WORKER_QUEUES defaults to "career" (unchanged behavior); listing "market" also starts the market consumer.
   if ((process.env.WORKER_QUEUES ?? 'career').split(',').map((q) => q.trim()).includes('market')) process.env.MARKET_WORKER = '1';

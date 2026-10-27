@@ -1,4 +1,4 @@
-import { http } from "@/services/http";
+import { http, type RequestOpts } from "@/services/http";
 
 export type MarketSourceType = "GREENHOUSE" | "LEVER" | "ASHBY";
 export type MarketAllowedUse = "ANALYTICS_AGGREGATE" | "DISPLAY_SNIPPET" | "DISPLAY_LINK_ONLY";
@@ -164,8 +164,77 @@ export interface MarketHealth {
   }>;
 }
 
-export function listRuns() {
-  return http.get<MarketRunRow[]>("/admin/market/runs");
+export function listRuns(skip = 0, take = 20) {
+  return http.get<{ total: number; skip: number; take: number; items: MarketRunRow[] }>(
+    `/admin/market/runs?skip=${skip}&take=${take}`,
+  );
+}
+
+export interface MarketTaskRow {
+  id: string;
+  kind: MarketRunKind;
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "SKIPPED";
+  attempts: number;
+  error: string | null;
+  durationMs: number | null;
+  createdAt: string;
+  run: { id: string; kind: MarketRunKind; status: MarketRunStatus; trigger: string };
+  source: { id: string; type: MarketSourceType; boardToken: string; company: { name: string } } | null;
+}
+
+export function listTasks(query: { status?: string; kind?: string; skip?: number; take?: number } = {}) {
+  const params = new URLSearchParams();
+  if (query.status) params.set("status", query.status);
+  if (query.kind) params.set("kind", query.kind);
+  params.set("skip", String(query.skip ?? 0));
+  params.set("take", String(query.take ?? 20));
+  return http.get<{ total: number; skip: number; take: number; items: MarketTaskRow[] }>(`/admin/market/tasks?${params.toString()}`);
+}
+
+export interface CompanyPosting {
+  id: string;
+  name: string;
+  active: boolean;
+  posted: number;
+  jobs: Record<string, number>;
+  sources: Array<{ id: string; type: MarketSourceType; enabled: boolean; lastSuccessAt: string | null; lastError: string | null }>;
+}
+
+export function listCompanyPostings() {
+  return http.get<CompanyPosting[]>("/admin/market/companies/postings");
+}
+
+export interface MarketJobRow {
+  id: string;
+  title: string;
+  status: string;
+  locationText: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  sourceCount: number;
+  company: { id: string; name: string };
+}
+
+export function listMarketJobs(query: { companyId?: string; skip?: number; take?: number } = {}) {
+  const params = new URLSearchParams();
+  if (query.companyId) params.set("companyId", query.companyId);
+  params.set("skip", String(query.skip ?? 0));
+  params.set("take", String(query.take ?? 20));
+  return http.get<{ total: number; skip: number; take: number; items: MarketJobRow[] }>(`/admin/market/jobs?${params.toString()}`);
+}
+
+export function peekQueue(queue: string, take = 20) {
+  return http.get<Array<{ messageId: string | null; body: unknown; redelivered: boolean }>>(
+    `/admin/market/queues/messages?queue=${encodeURIComponent(queue)}&take=${take}`,
+  );
+}
+
+export function requeueDlq(queue: string, count: number) {
+  return http.post<{ moved: number; reopened: number }>("/admin/market/queues/requeue", { queue, count });
+}
+
+export function dropQueueMessages(queue: string, count: number) {
+  return http.post<{ dropped: number }>("/admin/market/queues/drop", { queue, count });
 }
 
 export function getRun(id: string) {
@@ -231,7 +300,7 @@ export interface DemandView {
   skills: DemandSkillRow[];
 }
 
-export function getDemand(careerId: string, q: { periodType?: string; basis?: string; lane?: string; periodStart?: string; take?: number } = {}) {
+export function getDemand(careerId: string, q: { periodType?: string; basis?: string; lane?: string; periodStart?: string; take?: number } = {}, opts?: RequestOpts) {
   const params = new URLSearchParams();
   if (q.periodType) params.set("periodType", q.periodType);
   if (q.basis) params.set("basis", q.basis);
@@ -239,20 +308,20 @@ export function getDemand(careerId: string, q: { periodType?: string; basis?: st
   if (q.periodStart) params.set("periodStart", q.periodStart);
   if (q.take) params.set("take", String(q.take));
   const qs = params.toString();
-  return http.get<DemandView>(`/admin/market/demand/careers/${careerId}${qs ? `?${qs}` : ""}`);
+  return http.get<DemandView>(`/admin/market/demand/careers/${careerId}${qs ? `?${qs}` : ""}`, opts);
 }
 
-export function getDemandPeriods(careerId: string, q: { periodType?: string; basis?: string; lane?: string } = {}) {
+export function getDemandPeriods(careerId: string, q: { periodType?: string; basis?: string; lane?: string } = {}, opts?: RequestOpts) {
   const params = new URLSearchParams();
   if (q.periodType) params.set("periodType", q.periodType);
   if (q.basis) params.set("basis", q.basis);
   if (q.lane) params.set("lane", q.lane);
   const qs = params.toString();
-  return http.get<DemandPeriod[]>(`/admin/market/demand/careers/${careerId}/periods${qs ? `?${qs}` : ""}`);
+  return http.get<DemandPeriod[]>(`/admin/market/demand/careers/${careerId}/periods${qs ? `?${qs}` : ""}`, opts);
 }
 
-export function getCurrentDemand(careerId: string, lane = "all") {
-  return http.get<DemandView>(`/admin/market/demand/careers/${careerId}/current?lane=${encodeURIComponent(lane)}`);
+export function getCurrentDemand(careerId: string, lane = "all", opts?: RequestOpts) {
+  return http.get<DemandView>(`/admin/market/demand/careers/${careerId}/current?lane=${encodeURIComponent(lane)}`, opts);
 }
 
 export type SkillTrendLabel = "INCREASING" | "DECREASING" | "EMERGING" | "STABLE" | "INSUFFICIENT_DATA";
@@ -316,21 +385,21 @@ export interface RoadmapVsMarket {
   };
 }
 
-export function getRoadmapVsMarket(careerId: string, lane = "all") {
-  return http.get<RoadmapVsMarket>(`/admin/market/careers/${careerId}/roadmap-vs-market?lane=${encodeURIComponent(lane)}`);
+export function getRoadmapVsMarket(careerId: string, lane = "all", opts?: RequestOpts) {
+  return http.get<RoadmapVsMarket>(`/admin/market/careers/${careerId}/roadmap-vs-market?lane=${encodeURIComponent(lane)}`, opts);
 }
 
 export function promoteMarketSkill(careerId: string, skillId: string) {
   return http.post<{ id: string; skillId: string; source: string; created: boolean }>(`/admin/market/careers/${careerId}/promote`, { skillId });
 }
 
-export function getTrends(careerId: string, q: { periodType?: string; lane?: string; label?: string } = {}) {
+export function getTrends(careerId: string, q: { periodType?: string; lane?: string; label?: string } = {}, opts?: RequestOpts) {
   const params = new URLSearchParams();
   if (q.periodType) params.set("periodType", q.periodType);
   if (q.lane) params.set("lane", q.lane);
   if (q.label) params.set("label", q.label);
   const qs = params.toString();
-  return http.get<TrendView>(`/admin/market/demand/careers/${careerId}/trends${qs ? `?${qs}` : ""}`);
+  return http.get<TrendView>(`/admin/market/demand/careers/${careerId}/trends${qs ? `?${qs}` : ""}`, opts);
 }
 
 export function getHealth() {
@@ -468,9 +537,10 @@ export function startReclassifyRun() {
   return http.post<{ runId: string | null; taskCount: number }>("/admin/market/runs/reclassify", {});
 }
 
-export function listCandidates(status = "PENDING") {
+export function listCandidates(status = "PENDING", opts?: RequestOpts) {
   return http.get<{ total: number; counts: Record<string, number>; items: SkillCandidateRow[] }>(
     `/admin/market/candidates?status=${encodeURIComponent(status)}&take=100`,
+    opts,
   );
 }
 
@@ -523,8 +593,8 @@ export function reopenCandidate(id: string) {
   return http.post(`/admin/market/candidates/${id}/reopen`, {});
 }
 
-export function listAliases(q?: string) {
-  return http.get<SkillAliasRow[]>(`/admin/market/aliases${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+export function listAliases(q?: string, opts?: RequestOpts) {
+  return http.get<SkillAliasRow[]>(`/admin/market/aliases${q ? `?q=${encodeURIComponent(q)}` : ""}`, opts);
 }
 
 export function addAlias(skillId: string, alias: string) {

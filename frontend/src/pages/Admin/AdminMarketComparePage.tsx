@@ -46,7 +46,7 @@ export function AdminMarketComparePage() {
   const [careerId, setCareerId] = useState("");
   const careers = profiles.data?.careers ?? [];
   const selected = careerId || careers[0]?.id || "";
-  const view = useAsyncData(() => (selected ? marketApi.getRoadmapVsMarket(selected) : Promise.resolve(null)), [selected]);
+  const view = useAsyncData((signal) => (selected ? marketApi.getRoadmapVsMarket(selected, "all", { signal }) : Promise.resolve(null)), [selected]);
 
   async function promote(skillId: string) {
     try {

@@ -208,6 +208,8 @@ model User {
   role               Role      @default(USER)
   isDemo             Boolean   @default(false)
   onboardingComplete Boolean   @default(false)
+  /// Preparation engine access. FREE is the default. No payment provider sets this.
+  prepPlan           PrepPlan  @default(FREE)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -226,6 +228,9 @@ model User {
   governmentElig     GovernmentEligibility[]
   governmentExamPlans GovernmentExamPlan[]
   sarkariMocks       SarkariMockAttempt[]
+  personalizedRoadmaps PersonalizedRoadmap[]
+  prepSessions       PrepSession[]
+  prepUsage          PrepUsage[]
 
   @@index([phone])
   @@map("user")
@@ -256,6 +261,9 @@ model Profile {
   certifications       Certification[]
   projects             Project[]
   experience           Experience[]
+  skillEvidence        SkillEvidence[]
+  evidenceSummaries    SkillEvidenceSummary[]
+  githubLinks          GithubRepoLink[]
 
   @@index([userId])
   @@map("profile")
@@ -302,6 +310,13 @@ model Skill {
   marketJobSkills         MarketJobSkill[]
   candidatesSuggested     SkillCandidate[] @relation("SkillCandidateSuggested")
   candidatesResolved      SkillCandidate[] @relation("SkillCandidateResolved")
+  skillEvidence           SkillEvidence[]
+  evidenceSummaries       SkillEvidenceSummary[]
+  relationsFrom           SkillRelation[] @relation("SkillRelationFrom")
+  relationsTo             SkillRelation[] @relation("SkillRelationTo")
+  learningResources       LearningResource[]
+  prepPackages            PrepPackage[]
+  prepSessions            PrepSession[]
 
   @@index([category])
   @@index([normalizedName])
@@ -512,6 +527,8 @@ model Career {
   ingestJobs              IngestCareerJob[]
   marketProfile           MarketCareerProfile?
   marketJobs              MarketJobCareer[]
+  personalizedRoadmaps    PersonalizedRoadmap[]
+  prepSessions            PrepSession[]
 
   @@index([slug])
   @@map("career")
@@ -621,7 +638,8 @@ model RoadmapTask {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  roadmap           Roadmap      @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  roadmap           Roadmap       @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  prepSessions      PrepSession[]
 
   @@index([roadmapId])
   @@index([status])
@@ -1686,4 +1704,299 @@ model SkillTrend {
   @@index([skillId])
   @@index([label])
   @@map("skill_trend")
+}
+
+enum EvidenceSource {
+  RESUME
+  PROJECT
+  ASSESSMENT
+  GITHUB
+  MANUAL
+}
+
+enum EvidenceQuality {
+  MENTIONED
+  DEMONSTRATED
+  ASSESSED
+}
+
+enum EvidenceClaim {
+  CLAIMED
+  SUPPORTED
+  VERIFIED
+}
+
+/// One observation of a skill. A re-upload or rescan adds a row and marks the previous current row of that source as not current.
+model SkillEvidence {
+  id             String          @id @default(cuid())
+  profileId      String
+  skillId        String
+  source         EvidenceSource
+  sourceRef      String?
+  observedAt     DateTime        @default(now())
+  quality        EvidenceQuality
+  signal         String?
+  current        Boolean         @default(true)
+  supersededById String?
+  createdAt      DateTime        @default(now())
+
+  profile        Profile         @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  skill          Skill           @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, skillId, current])
+  @@index([profileId, source])
+  @@map("skill_evidence")
+}
+
+/// Best current claim for a skill. History stays on SkillEvidence.
+model SkillEvidenceSummary {
+  id        String        @id @default(cuid())
+  profileId String
+  skillId   String
+  status    EvidenceClaim
+  updatedAt DateTime      @updatedAt
+
+  profile   Profile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  skill     Skill         @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, skillId])
+  @@map("skill_evidence_summary")
+}
+
+/// A public GitHub repo the learner linked. Disconnect sets revokedAt and keeps evidence rows.
+model GithubRepoLink {
+  id           String    @id @default(cuid())
+  profileId    String
+  owner        String
+  repo         String
+  url          String
+  revokedAt    DateTime?
+  lastScannedAt DateTime?
+  createdAt    DateTime  @default(now())
+
+  profile      Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, owner, repo])
+  @@index([profileId])
+  @@map("github_repo_link")
+}
+
+enum SkillRelationKind {
+  PREREQUISITE
+}
+
+/// relatedSkill should be learned before skill. Used only by the readiness view.
+model SkillRelation {
+  id             String            @id @default(cuid())
+  skillId        String
+  relatedSkillId String
+  kind           SkillRelationKind @default(PREREQUISITE)
+  createdAt      DateTime          @default(now())
+
+  skill          Skill             @relation("SkillRelationFrom", fields: [skillId], references: [id], onDelete: Cascade)
+  related        Skill             @relation("SkillRelationTo", fields: [relatedSkillId], references: [id], onDelete: Cascade)
+
+  @@unique([skillId, relatedSkillId, kind])
+  @@index([skillId])
+  @@map("skill_relation")
+}
+
+model PersonalizedRoadmap {
+  id        String                    @id @default(cuid())
+  userId    String
+  careerId  String
+  title     String
+  createdAt DateTime                  @default(now())
+  updatedAt DateTime                  @updatedAt
+
+  user      User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  career    Career                    @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  tasks     PersonalizedRoadmapTask[]
+
+  @@index([userId])
+  @@map("personalized_roadmap")
+}
+
+model PersonalizedRoadmapTask {
+  id          String               @id @default(cuid())
+  roadmapId   String
+  skillId     String?
+  title       String
+  why         String
+  sortOrder   Int                  @default(0)
+  foundational Boolean             @default(false)
+  createdAt   DateTime             @default(now())
+
+  roadmap     PersonalizedRoadmap  @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+
+  @@index([roadmapId])
+  @@map("personalized_roadmap_task")
+}
+
+enum LearningResourceKind {
+  DOC
+  TUTORIAL
+  PRACTICE
+}
+
+model LearningResource {
+  id        String               @id @default(cuid())
+  skillId   String
+  title     String
+  url       String
+  kind      LearningResourceKind
+  active    Boolean              @default(true)
+  createdAt DateTime             @default(now())
+
+  skill     Skill                @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([skillId, active])
+  @@map("learning_resource")
+}
+
+/// Learner access to preparation quotas. Not a billing subscription.
+enum PrepPlan {
+  FREE
+  PAID
+}
+
+enum PrepPackageStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum PrepSessionStatus {
+  IN_PROGRESS
+  NEEDS_PRACTICE
+  VERIFIED
+  ABANDONED
+}
+
+enum PrepLessonStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum PrepUsageKind {
+  GENERATE
+  GRADE
+  HINT
+}
+
+/// Shared, versioned lesson package for one skill. Rubric stays off learner responses.
+model PrepPackage {
+  id          String            @id @default(cuid())
+  skillId     String
+  /// "*" is the generic package. A career id scopes a package to that career.
+  careerScope String            @default("*")
+  version     Int
+  content     Json
+  rubric      Json
+  contentHash String
+  status      PrepPackageStatus @default(PUBLISHED)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  publishedAt DateTime?
+
+  skill       Skill             @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  sessions    PrepSession[]
+
+  @@unique([skillId, careerScope, version])
+  @@index([skillId, status])
+  @@map("prep_package")
+}
+
+/// One learner's run of a package. Progress is not shared with other users.
+model PrepSession {
+  id            String            @id @default(cuid())
+  userId        String
+  skillId       String
+  careerId      String?
+  packageId     String
+  roadmapTaskId String?
+  status        PrepSessionStatus @default(IN_PROGRESS)
+  resumeState   Json?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill         Skill             @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  career        Career?           @relation(fields: [careerId], references: [id], onDelete: SetNull)
+  package       PrepPackage       @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  roadmapTask   RoadmapTask?      @relation(fields: [roadmapTaskId], references: [id], onDelete: SetNull)
+  lessons       PrepLessonProgress[]
+  attempts      PrepAttempt[]
+  tasks         PrepTaskSubmission[]
+
+  @@index([userId, skillId, status])
+  @@index([packageId])
+  @@map("prep_session")
+}
+
+model PrepLessonProgress {
+  id          String           @id @default(cuid())
+  sessionId   String
+  lessonKey   String
+  status      PrepLessonStatus @default(NOT_STARTED)
+  completedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  session     PrepSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, lessonKey])
+  @@map("prep_lesson_progress")
+}
+
+/// Append-only answer. A package update does not rewrite these rows.
+model PrepAttempt {
+  id             String   @id @default(cuid())
+  sessionId      String
+  questionKey    String
+  attemptNumber  Int
+  answer         String
+  score          Int
+  maxScore       Int      @default(100)
+  feedback       String
+  passed         Boolean
+  idempotencyKey String
+  createdAt      DateTime @default(now())
+
+  session        PrepSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, idempotencyKey])
+  @@index([sessionId, questionKey])
+  @@map("prep_attempt")
+}
+
+model PrepTaskSubmission {
+  id         String   @id @default(cuid())
+  sessionId  String
+  taskKey    String
+  evidence   String
+  verified   Boolean  @default(false)
+  score      Int      @default(0)
+  feedback   String
+  createdAt  DateTime @default(now())
+
+  session    PrepSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, taskKey])
+  @@map("prep_task_submission")
+}
+
+model PrepUsage {
+  id        String        @id @default(cuid())
+  userId    String
+  kind      PrepUsageKind
+  model     String?
+  tokensIn  Int?
+  tokensOut Int?
+  createdAt DateTime      @default(now())
+
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, kind, createdAt])
+  @@map("prep_usage")
 }

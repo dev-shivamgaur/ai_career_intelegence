@@ -1,5 +1,6 @@
 import { RoadmapTaskCard } from "@/components/roadmap/RoadmapTaskCard";
 import { Button } from "@/components/ui/Button";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/Progress";
 import { Tabs } from "@/components/ui/Tabs";
 import { EmptyState, ErrorState, NeedSetupState, SETUP_CODES } from "@/components/ui/States";
@@ -7,6 +8,7 @@ import { DashboardSkeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/store/hooks";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import * as careerApi from "@/services/api/careerApi";
+import { applyPersonalPlan, generatePersonalPlan, getPersonalPlan } from "@/services/api/learnerApi";
 import type { RoadmapTask } from "@/types";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -62,12 +64,16 @@ export function RoadmapPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const skillFilter = params.get("skill")?.trim() ?? "";
+  const phaseQuery = params.get("phase");
   const { push } = useToast();
-  const [phase, setPhase] = useState<RoadmapTask["phase"]>("7d");
+  const [phase, setPhase] = useState<RoadmapTask["phase"]>(
+    phases.some((item) => item.id === phaseQuery) ? (phaseQuery as RoadmapTask["phase"]) : "7d",
+  );
   const { data, loading, error, errorCode, reload, setData } = useAsyncData(
     () => careerApi.getRoadmap(phase),
     [phase],
   );
+  const personal = useAsyncData(() => getPersonalPlan());
 
   const [building, setBuilding] = useState(false);
 
@@ -147,6 +153,29 @@ export function RoadmapPage() {
           {building ? "Rebuilding…" : "Rebuild plan from current gaps"}
         </Button>
       </div>
+      {personal.data && (
+        <Card>
+          <CardHeader
+            title="Optional personal order"
+            description="This sits beside the current roadmap. Applying it only adds tasks. It does not delete or reorder the plan you already have."
+          />
+          <CardBody className="space-y-2 text-sm">
+            <ul>
+              {(personal.data.plan?.tasks ?? []).slice(0, 8).map((task) => (
+                <li key={task.id}>{task.title}</li>
+              ))}
+            </ul>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => void generatePersonalPlan().then(() => personal.reload())}>
+                Build personal order
+              </Button>
+              <Button size="sm" onClick={() => void applyPersonalPlan().then(() => reload())}>
+                Add these tasks
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
+      )}
       <div className="grid gap-4 md:grid-cols-3">
         <FixedTopics key={`${phase}-next`} title="Study next" items={data.studyNext ?? data.tasks.map((task) => task.title)} />
         <FixedTopics key={`${phase}-optional`} title="Optional" items={data.optional ?? []} />
@@ -179,8 +208,12 @@ export function RoadmapPage() {
       )}
       {visible.length === 0 ? (
         <EmptyState
-          title="No topics in this window"
-          description="This tab only loads this time range. Rebuild the plan if the count is zero, or open another range."
+          title={skillFilter ? "Not found" : "No topics in this window"}
+          description={
+            skillFilter
+              ? `${skillFilter} is not a task in this roadmap window. Header search only opens skills and tasks already on your plan.`
+              : "This tab only loads this time range. Rebuild the plan if the count is zero, or open another range."
+          }
         />
       ) : (
         <div className="space-y-3">

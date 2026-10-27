@@ -28,6 +28,7 @@ function mapReport(raw: Record<string, unknown> | null): ResearchReport {
       keyFinding: String(s.keyFinding ?? ""),
       usedInRecommendation: Boolean(s.usedInRecommendation),
       confidence: Number(s.confidence ?? 0),
+      url: s.url ? String(s.url) : undefined,
     }),
   );
   const timeline = ((raw.timeline as Array<Record<string, unknown>>) ?? []).map(

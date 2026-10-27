@@ -6,7 +6,7 @@ import { OpportunitySkeleton } from "@/components/ui/Skeleton";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import * as opportunityApi from "@/services/api/opportunityApi";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 export function OpportunitiesPage() {
   const [tab, setTab] = useState("jobs");
@@ -36,16 +36,29 @@ export function OpportunitiesPage() {
 
 export function JobsPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const jobId = params.get("job")?.trim() ?? "";
   const { data, loading, error, reload } = useAsyncData(() => opportunityApi.getJobs());
   if (loading) return <OpportunitySkeleton />;
   if (error) return <ErrorState onRetry={() => void reload()} onDashboard={() => navigate("/dashboard")} />;
+  const jobs = data ?? [];
+  const visible = jobId ? jobs.filter((job) => job.id === jobId) : jobs;
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Jobs</h1>
-        <p className="text-sm text-slate-500">Mock listings only. Match % is a platform estimate.</p>
+        <p className="text-sm text-slate-500">
+          Listings saved for your account. Header search opens one of these jobs. It does not search company career sites.
+        </p>
       </div>
-      <JobList jobs={data ?? []} />
+      {jobId && visible.length === 0 ? (
+        <EmptyState
+          title="Not found"
+          description="That job is not in your saved list. Search only matches jobs already loaded on this page."
+        />
+      ) : (
+        <JobList jobs={visible} />
+      )}
     </div>
   );
 }

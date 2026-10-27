@@ -27,6 +27,11 @@ export class MarketJobsController {
     private readonly pipeline: MarketProcessService,
   ) {}
 
+  @Get('companies/postings')
+  companyPostings() {
+    return this.jobs.companySummary();
+  }
+
   @Get('jobs')
   list(
     @Query('companyId') companyId?: string,

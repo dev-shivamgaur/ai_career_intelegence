@@ -1,35 +1,35 @@
 services:
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: aci-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: aci
-      POSTGRES_PASSWORD: aci_secret
-      POSTGRES_DB: aci
-    ports:
-      - "5432:5432"
-    volumes:
-      - aci_pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aci -d aci"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+  # postgres:
+  #   image: pgvector/pgvector:pg16
+  #   container_name: aci-postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: aci
+  #     POSTGRES_PASSWORD: aci_secret
+  #     POSTGRES_DB: aci
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - aci_pgdata:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U aci -d aci"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 10
 
-  redis:
-    image: redis:7-alpine
-    container_name: aci-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - aci_redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: aci-redis
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - aci_redisdata:/data
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 10
 
   rabbitmq:
     image: rabbitmq:3-management

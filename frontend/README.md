@@ -1,43 +1,119 @@
-# AI Career Intelligence
+# AI Career Intelligence — Frontend
 
-Evidence-based career intelligence frontend for students, freshers, and early-career professionals.
+React SPA for learners (private tech + government exam tracks) and an admin console. Talks to the NestJS API via Vite proxy — **not** a mock-only app.
 
-This repository contains **only the React frontend**. All AI, OCR, search, and authentication behavior is mocked locally so the app runs without API keys, environment variables, or a backend.
+## Prerequisites
 
-## Run locally
+- Node.js 20+
+- Backend running (see [../backend/README.md](../backend/README.md))
+
+## Quick start
 
 ```bash
+cd frontend
 npm install
 npm run dev
 ```
 
 Open the URL Vite prints (default `http://localhost:5173`).
 
-Build:
-
 ```bash
 npm run build
 npm run preview
 ```
 
+`vite.config.ts` proxies `/api` → the Nest server so browser calls stay same-origin.
+
 ## Demo login
 
-- Email: `shivam@demo.local`
-- Password: any value with at least 4 characters
-- Or use **Continue with Google** (mock) to enter the demo user
+Uses **phone OTP** against the backend (not email/password mocks):
 
-A **Demo Mode** banner appears for the seeded BCA / Backend Developer profile.
+- Phone: `+919876543210`
+- OTP: `123456` (development)
+
+Admin UI: `/admin/login` (phones listed in backend `ADMIN_PHONES`).
 
 ## Architecture
 
-Pages call `src/services/api/*`, which currently re-export `src/services/mock/*`.
+```
+pages/  →  services/api/*  →  services/http.ts  →  /api/v1/* (proxied)
+                ↑
+         Redux store / ProfileContext / session helpers
+```
 
-To connect a NestJS API later, replace the mock implementations inside those API modules. UI pages should not need a rewrite.
+| Folder | Use case |
+|--------|----------|
+| `src/pages/` | Route-level screens (Dashboard, Prepare, Sarkari, Admin, …) |
+| `src/components/` | Reusable UI: layout, copilot widget, cards, sarkari flags, admin pieces |
+| `src/layouts/` | `AppLayout` (learner shell + floating Copilot), `AdminLayout` |
+| `src/services/api/` | Typed API clients (`authApi`, `preparationApi`, `appApi` stream, …) |
+| `src/services/http.ts` | Axios/fetch wrapper, auth headers, error toasts |
+| `src/context/` | Profile provider shared across learner pages |
+| `src/store/` | Redux Toolkit (session effects, UI state) |
+| `src/routes/` | `ProtectedRoute`, `GuestRoute`, `AdminGate` |
+| `src/lib/` | Formatters, fingerprint, Copilot suggestion chips, storage helpers |
+| `src/types/` | Shared TypeScript models |
+| `src/hooks/` | Data-loading helpers (`useAsyncData`, …) |
 
-Mock datasets live in `src/data/` and stay internally consistent with the demo profile.
+## Learner pages (`src/pages/`)
 
-Session, theme, preferences, roadmap task status, and notifications use `src/lib/storage.ts` (`localStorage` with an `aci:` prefix). Uploaded document **files** are not written to `localStorage`.
+| Page | Use case |
+|------|----------|
+| `Landing/` | Marketing home; CTAs into login / dashboard / Copilot |
+| `Auth/` | Login / signup (OTP) |
+| `Onboarding/` | Track + goal setup |
+| `Dashboard/` | Snapshot, gaps, jobs, Copilot suggestion chips |
+| `Profile/` | Edit profile and career track |
+| `Documents/` | Upload resume / certificates / marksheets |
+| `CareerAnalysis/` | Fit vs target role |
+| `SkillGap/` | Missing / weak skills |
+| `Roadmap/` | Ordered prep plan |
+| `Prepare/` | Prep Engine UI — packages, version switch, lessons / quiz / tasks |
+| `Opportunities/` | Private jobs + government opportunities |
+| `Sarkari/` | Exam hub and per-exam pages |
+| `Market/` | Market slice UI (feature-flagged) |
+| `Research/` | Trigger/store research summaries |
+| `Progress/` | Progress over time |
+| `Settings/` | Preferences / account |
 
-## Product flow
+**AI Copilot** is not a full page anymore. A fixed FAB + resizable panel mounts in `AppLayout` (`components/copilot/`). `/copilot` redirects to `/dashboard?copilot=1`.
 
-Documents → Personal profile → Career goal → Career requirements → Skill gap → Market research → Evidence → Roadmap → Jobs / government opportunities → Progress → Copilot
+## Copilot widget (`src/components/copilot/`)
+
+| File | Role |
+|------|------|
+| `CopilotWidget.tsx` | FAB, open/close, size shell, `?copilot=1` + `openCopilot()` events |
+| `CopilotPanel.tsx` | Chat chrome, suggestions, resize handles |
+| `useCopilotChat.ts` | Welcome, chips, streaming via `appApi.streamCopilotMessage` |
+| `useCopilotResize.ts` | Drag width/height; sessionStorage size |
+| `copilotOpen.ts` | `openCopilot({ q })` for Dashboard chips |
+| `Chat.tsx` | Message bubbles, typing indicator, input |
+
+## Admin pages
+
+Under `src/pages/Admin/` — users, careers, skills, jobs, exams, opportunities, market tools, company intel, learning resources, **prep packages** (`/admin/prep`). Guarded by `AdminGate` + `AdminLayout`.
+
+## Product flow (learner)
+
+```
+Documents → Profile → Career / exam goal
+  → Career analysis + skill gap
+  → Roadmap + Prepare (practice with evidence)
+  → Jobs / Sarkari vacancies
+  → Research → Progress
+  → Floating Copilot (any page)
+```
+
+## Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `npm run dev` | Vite dev server |
+| `npm run build` | `tsc -b` + production bundle |
+| `npm run preview` | Serve production build |
+
+## Related docs
+
+- Root [README.md](../README.md) — monorepo overview and stack
+- [../backend/README.md](../backend/README.md) — API modules and env
+- [../analyse.md](../analyse.md) — auth tokens and proxy details

@@ -13,4 +13,8 @@ import { RabbitConnection } from './rabbit.connection';
   providers: [RabbitConnection, IngestEnqueueService, IngestRunService, IngestCareerConsumer],
   exports: [IngestEnqueueService, IngestRunService, RabbitConnection],
 })
-export class QueueModule {}
+export class QueueModule {
+  constructor() {
+    console.log('QueueModule constructor');
+  }
+}

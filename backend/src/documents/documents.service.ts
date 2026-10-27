@@ -15,6 +15,8 @@ import { GithubAnalyzeService } from '../web/github-analyze.service';
 import { SkillMatchAgentService } from '../ai/skill-match-agent.service';
 import { shouldPromoteToWorkingProfessional } from '../ai/learner-tier';
 import { SkillLexiconService } from '../ai/skill-lexicon.service';
+import { SkillEvidenceService } from '../learner/skill-evidence.service';
+import { GithubEvidenceService } from '../learner/github-evidence.service';
 
 @Injectable()
 export class DocumentsService {
@@ -33,6 +35,8 @@ export class DocumentsService {
     private readonly github: GithubAnalyzeService,
     private readonly matchAgent: SkillMatchAgentService,
     private readonly lexicon: SkillLexiconService,
+    private readonly skillEvidence: SkillEvidenceService,
+    private readonly githubEvidence: GithubEvidenceService,
   ) {}
 
   async list(userId: string) {
@@ -270,6 +274,16 @@ export class DocumentsService {
           source: 'DOCUMENT',
         },
       });
+      await this.skillEvidence
+        .observe({
+          profileId: profile.id,
+          skillId: skill.id,
+          source: 'RESUME',
+          quality: 'MENTIONED',
+          sourceRef: 'resume',
+          signal: 'Mentioned on a resume.',
+        })
+        .catch((err: Error) => this.logger.warn(`Evidence not recorded: ${err.message}`));
     }
 
     const degreeName = extracted.degree?.trim();
@@ -446,16 +460,34 @@ export class DocumentsService {
       if (seen.has(key)) continue;
       seen.add(key);
       let description = (p.description || '').trim() || 'Extracted from resume.';
-      let skills = p.skills ?? [];
+      const listed = p.skills ?? [];
+      let skills = listed;
       if (p.link && this.github.isGithubRepo(p.link)) {
         const analysis = await this.github.analyzeUrl(p.link).catch(() => null);
         if (analysis) {
+          await this.githubEvidence.remember(profileId, p.link, analysis.skills).catch((err: Error) => this.logger.warn(`GitHub evidence skipped: ${err.message}`));
           description = `${description}\n\nGitHub analysis: ${analysis.summary}`.slice(0, 2400);
           skills = [...new Set([...skills, ...analysis.skills])];
         } else {
           const readme = await githubReadmeSummary(p.link);
           if (readme) description = `${description}\n\nGitHub: ${readme}`.slice(0, 1800);
         }
+      }
+      for (const rawName of listed) {
+        const trimmed = keepSkillName(rawName);
+        if (!trimmed) continue;
+        const skill = await this.prisma.skill.findFirst({ where: { name: trimmed }, select: { id: true } });
+        if (!skill) continue;
+        await this.skillEvidence
+          .observe({
+            profileId,
+            skillId: skill.id,
+            source: 'PROJECT',
+            quality: 'DEMONSTRATED',
+            sourceRef: p.link ?? name,
+            signal: 'Listed on a project. A project mention is not a proficiency proof.',
+          })
+          .catch((err: Error) => this.logger.warn(`Project evidence skipped: ${err.message}`));
       }
       const existing = await this.prisma.project.findFirst({
         where: { profileId, name },

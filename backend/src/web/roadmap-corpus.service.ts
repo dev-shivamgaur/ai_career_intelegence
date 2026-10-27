@@ -12,6 +12,9 @@ import {
   classifyTopic,
   topicPlanForTier,
 } from '../ai/learner-tier';
+import { MarketCompareService } from '../market/compare/market-compare.service';
+import { marketDemandSentence, selectMarketPlanSkills } from '../market/compare/compare';
+import { marketFlags } from '../market/market.flags';
 import {
   belongsToOtherLane,
   familyFromCareer,
@@ -37,6 +40,7 @@ export class RoadmapCorpusService {
     private readonly rag: RagService,
     private readonly web: WebResearchService,
     private readonly evidence: EvidenceService,
+    private readonly marketCompare: MarketCompareService,
   ) {}
 
   publicSlug(careerSlug: string, syllabusSlug?: string | null) {
@@ -277,6 +281,21 @@ export class RoadmapCorpusService {
       applied = later.slice(0, take);
       later = later.slice(take);
     }
+
+    const marketWhy = new Map<string, string>();
+    const marketRows = await this.marketPlanSkills(goal.careerId, ev.known);
+    const placed = new Set([...week, ...applied, ...later].map((title) => title.toLowerCase()));
+    const marketApplied: string[] = [];
+    for (const row of marketRows) {
+      const title = row.name.trim();
+      if (!title || placed.has(title.toLowerCase())) continue;
+      placed.add(title.toLowerCase());
+      marketWhy.set(title.toLowerCase(), marketDemandSentence(row));
+      if (classifyTopic(title, coreTitles) === 'advanced') later.push(title);
+      else marketApplied.push(title);
+    }
+    applied = [...marketApplied, ...applied];
+
     const [d60, d90, d180] = splitThirds(later);
     const phased: Array<{ title: string; phase: RoadmapPhase; stretch: boolean }> = [
       ...week.map((title) => ({ title, phase: RoadmapPhase.D7, stretch: false })),
@@ -317,7 +336,9 @@ export class RoadmapCorpusService {
       return {
         title,
         description: `In ${stackName}, practice ${title} on one real task, including one thing that can go wrong. About ${hours} hours.`,
-        why: `${title} belongs in the ${window} plan for ${stackName}. Longer windows ask harder questions.`,
+        why:
+          marketWhy.get(title.toLowerCase()) ??
+          `${title} belongs in the ${window} plan for ${stackName}. Longer windows ask harder questions.`,
         priority: phase === RoadmapPhase.D7 ? Priority.HIGH : Priority.MEDIUM,
         estimatedEffort: `${hours} hours for this topic`,
         status: TaskStatus.NOT_STARTED,
@@ -367,6 +388,18 @@ export class RoadmapCorpusService {
     }
 
     return this.prisma.roadmap.findFirst({ where: { id: existing.id } });
+  }
+
+  private async marketPlanSkills(careerId: string, known: string[]) {
+    if (!marketFlags.skillGapField()) return [];
+    try {
+      const view = await this.marketCompare.compare(careerId, 'all');
+      if (!view.period) return [];
+      return selectMarketPlanSkills(view.sets.marketOnly, known);
+    } catch (err) {
+      this.logger.debug(`Market roadmap skills skipped: ${(err as Error).message}`);
+      return [];
+    }
   }
 
   private async loadTopics(publicSlug: string, pageUrl: string) {
@@ -547,6 +580,7 @@ export class RoadmapCorpusService {
     }
   }
 
+  
   documentSkillsSource() {
     return SkillSource.DOCUMENT;
   }

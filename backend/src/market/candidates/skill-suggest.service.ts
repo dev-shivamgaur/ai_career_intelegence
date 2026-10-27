@@ -59,17 +59,18 @@ export class SkillSuggestService {
   private async llmPick(name: string, options: Scored[], dailyLimit: number): Promise<Suggestion | null> {
     if (!this.llm.isConfigured() || !(await takeLlmBudget(this.redis, dailyLimit))) return null;
     try {
-      const res = (await this.llm
-        .chat({ temperature: 0 })
-        .withStructuredOutput(pickSchema)
-        .invoke([
+      const res = await this.llm.structured(
+        pickSchema,
+        [
           new SystemMessage(
             'You map a skill name from a job posting to an existing skill. choice must be copied exactly from the options, ' +
               'or null when none is the same skill (a related or broader skill is NOT the same). isSkill is false when the ' +
               'name is not a technical skill at all.',
           ),
           new HumanMessage(`Name: ${name}\nOptions:\n${options.map((o) => `- ${o.name}`).join('\n')}`),
-        ])) as z.infer<typeof pickSchema>;
+        ],
+        { temperature: 0, label: 'Skill suggest' },
+      );
       const chosen = options.find((o) => o.name === res.choice);
       if (!res.isSkill) return { method: 'LLM', skillId: null, score: res.confidence, note: 'LLM: not a technical skill' };
       if (!chosen) return { method: 'LLM', skillId: null, score: res.confidence, note: 'LLM: no matching skill' };

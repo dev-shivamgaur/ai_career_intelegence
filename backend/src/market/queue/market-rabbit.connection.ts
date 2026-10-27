@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { connect, type Channel, type ChannelModel } from 'amqplib';
+import { preferIpv4Loopback } from '../../common/loopback';
 import { marketFlags } from '../market.flags';
 import {
   ALL_MARKET_QUEUES,
@@ -68,6 +69,99 @@ export class MarketRabbitConnection implements OnModuleInit, OnModuleDestroy {
     return this.channel.publish(MARKET_EXCHANGE, message.queue, body, options);
   }
 
+  knownQueue(name: string): boolean {
+    return (
+      (ALL_MARKET_QUEUES as string[]).includes(name) ||
+      (ALL_MARKET_QUEUES as MarketQueueName[]).some((queue) => dlqName(queue) === name) ||
+      name === MARKET_RETRY_QUEUE
+    );
+  }
+
+  /** Reads up to `limit` messages and puts them back, so the admin view does not consume the queue. */
+  async peek(queue: string, limit: number): Promise<Array<{ messageId: string | null; body: unknown; redelivered: boolean }>> {
+    return this.withOpsChannel(async (channel) => {
+      const held: Awaited<ReturnType<Channel['get']>>[] = [];
+      const cap = Math.min(Math.max(limit, 1), 50);
+      for (let i = 0; i < cap; i += 1) {
+        const msg = await channel.get(queue, { noAck: false });
+        if (!msg) break;
+        held.push(msg);
+      }
+      const rows = held.map((msg) => {
+        if (!msg) return { messageId: null, body: null, redelivered: false };
+        let body: unknown = msg.content.toString();
+        try {
+          body = JSON.parse(msg.content.toString()) as unknown;
+        } catch {
+          body = msg.content.toString().slice(0, 500);
+        }
+        return { messageId: msg.properties.messageId ?? null, body, redelivered: msg.fields.redelivered };
+      });
+      for (let i = held.length - 1; i >= 0; i -= 1) {
+        const msg = held[i];
+        if (msg) channel.nack(msg, false, true);
+      }
+      return rows;
+    });
+  }
+
+  /** Moves messages from a DLQ back onto the stage queue named in the message. */
+  async requeue(queue: string, count: number): Promise<number> {
+    return this.withOpsChannel(async (channel) => {
+      let moved = 0;
+      const cap = Math.min(Math.max(count, 1), 50);
+      for (let i = 0; i < cap; i += 1) {
+        const msg = await channel.get(queue, { noAck: false });
+        if (!msg) break;
+        let parsed: MarketMessage | null = null;
+        try {
+          parsed = JSON.parse(msg.content.toString()) as MarketMessage;
+        } catch {
+          parsed = null;
+        }
+        const target = parsed?.queue;
+        if (!target || !(ALL_MARKET_QUEUES as string[]).includes(target)) {
+          channel.nack(msg, false, true);
+          break;
+        }
+        channel.publish(MARKET_EXCHANGE, target, msg.content, {
+          persistent: true,
+          contentType: 'application/json',
+          messageId: msg.properties.messageId,
+        });
+        channel.ack(msg);
+        moved += 1;
+      }
+      return moved;
+    });
+  }
+
+  /** Acks messages so they leave the queue. Database task rows stay. */
+  async drop(queue: string, count: number): Promise<number> {
+    return this.withOpsChannel(async (channel) => {
+      let dropped = 0;
+      const cap = Math.min(Math.max(count, 1), 50);
+      for (let i = 0; i < cap; i += 1) {
+        const msg = await channel.get(queue, { noAck: false });
+        if (!msg) break;
+        channel.ack(msg);
+        dropped += 1;
+      }
+      return dropped;
+    });
+  }
+
+  private async withOpsChannel<T>(fn: (channel: Channel) => Promise<T>): Promise<T> {
+    if (!this.connection || !this.ready) throw new Error('Market queue is not connected');
+    const channel = await this.connection.createChannel();
+    try {
+      await assertMarketTopology(channel);
+      return await fn(channel);
+    } finally {
+      await channel.close().catch(() => undefined);
+    }
+  }
+
   async queueDepths(): Promise<Array<{ queue: string; messages: number; consumers: number }>> {
     if (!this.connection || !this.ready) return [];
     const channel = await this.connection.createChannel();
@@ -87,8 +181,10 @@ export class MarketRabbitConnection implements OnModuleInit, OnModuleDestroy {
   private async connectLoop() {
     if (this.stopping) return;
     try {
-      const connection = await connect(this.config.get<string>('RABBITMQ_URL')!);
-      connection.on('error', (err) => this.logger.warn(`Market RabbitMQ error: ${err.message}`));
+      const connection = await connect(preferIpv4Loopback(this.config.get<string>('RABBITMQ_URL')!));
+      connection.on('error', (err) => {
+        console.log("MARKET RABBITMQ ERROR", err);
+        this.logger.warn(`Market RabbitMQ error: ${err.message}`)});
       connection.on('close', () => this.handleClose());
       const channel = await connection.createChannel();
       channel.on('close', () => this.handleClose());

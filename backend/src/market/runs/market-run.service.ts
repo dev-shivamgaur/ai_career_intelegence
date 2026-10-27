@@ -137,12 +137,52 @@ export class MarketRunService {
     await this.refreshRun(runId);
   }
 
-  listRuns(kind?: MarketRunKind, take = 30) {
-    return this.prisma.marketRun.findMany({
-      where: kind ? { kind } : {},
-      orderBy: { createdAt: 'desc' },
-      take,
+  listRuns(kind?: MarketRunKind, take = 20, skip = 0) {
+    const where = kind ? { kind } : {};
+    return Promise.all([
+      this.prisma.marketRun.count({ where }),
+      this.prisma.marketRun.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+    ]).then(([total, items]) => ({ total, skip, take, items }));
+  }
+
+  listTasks(params: { status?: MarketTaskStatus; kind?: MarketRunKind; skip?: number; take?: number }) {
+    const take = Math.min(Math.max(params.take ?? 20, 1), 100);
+    const skip = Math.max(params.skip ?? 0, 0);
+    const where: Prisma.MarketTaskWhereInput = {};
+    if (params.status) where.status = params.status;
+    if (params.kind) where.kind = params.kind;
+    return Promise.all([
+      this.prisma.marketTask.count({ where }),
+      this.prisma.marketTask.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+        include: {
+          run: { select: { id: true, kind: true, status: true, trigger: true } },
+          source: { select: { id: true, type: true, boardToken: true, company: { select: { name: true } } } },
+        },
+      }),
+    ]).then(([total, items]) => ({ total, skip, take, items }));
+  }
+
+  /** Failed tasks must be QUEUED again before their message is replayed, or the worker drops them. */
+  async reopenFailed(taskIds: string[]) {
+    const ids = [...new Set(taskIds.filter(Boolean))];
+    if (!ids.length) return { reopened: 0 };
+    const rows = await this.prisma.marketTask.findMany({ where: { id: { in: ids }, status: MarketTaskStatus.FAILED }, select: { id: true, runId: true } });
+    if (!rows.length) return { reopened: 0 };
+    await this.prisma.marketTask.updateMany({
+      where: { id: { in: rows.map((row) => row.id) } },
+      data: { status: MarketTaskStatus.QUEUED, error: null, finishedAt: null },
     });
+    for (const runId of new Set(rows.map((row) => row.runId))) await this.refreshRun(runId);
+    return { reopened: rows.length };
   }
 
   getRun(runId: string) {

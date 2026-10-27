@@ -1,3 +1,4 @@
+import { CopilotWidget } from "@/components/copilot/CopilotWidget";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 import { ProfileProvider, useProfile } from "@/context/ProfileContext";
@@ -45,6 +46,7 @@ function AppShell() {
           <Outlet />
         </main>
       </div>
+      <CopilotWidget />
     </div>
   );
 }

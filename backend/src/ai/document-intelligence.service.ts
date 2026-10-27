@@ -259,17 +259,14 @@ User label: ${context.label || 'none'}.`,
   }
 
   private async invokeLlm(messages: Array<SystemMessage | HumanMessage>) {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      return await Promise.race([
-        this.llm.chat({ temperature: 0 }).invoke(messages),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new Error('LLM extraction timed out')), 18_000);
-        }),
-      ]);
-    } finally {
-      if (timer) clearTimeout(timer);
-    }
+    const text = await this.llm.complete(
+      messages.map((m) => ({
+        role: m instanceof SystemMessage ? ('system' as const) : ('user' as const),
+        content: typeof m.content === 'string' ? m.content : String(m.content),
+      })),
+      { temperature: 0, timeoutMs: 60_000 },
+    );
+    return { content: text };
   }
 
   private async heuristicFromText(

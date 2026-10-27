@@ -109,7 +109,7 @@ export function LandingPage() {
 
   return (
     <div className="min-h-screen bg-surface text-ink dark:bg-surface-dark dark:text-stone-100">
-      <header className="sticky top-0 z-30 border-b border-stone-200/80 bg-white/90 backdrop-blur-md dark:border-stone-800 dark:bg-surface-dark/90">
+      <header className="sticky top-0 z-30 border-b border-[#C4C4C4]/80 bg-surface/90 backdrop-blur-md dark:border-[#3A3333] dark:bg-surface-dark/90">
         <div className="page-wrap flex h-[4.25rem] items-center justify-between gap-3">
           <BrandLogo />
           <nav className="flex items-center gap-1.5 sm:gap-2">
@@ -176,11 +176,10 @@ export function LandingPage() {
           <h1 className="mt-5 text-pretty text-[2rem] font-semibold leading-[1.12] tracking-tight sm:text-4xl lg:text-[2.7rem]">
             {signedIn
               ? `Welcome back, ${firstName(user?.name || "there")}. Your plan is waiting.`
-              : "See where you stand. Know what to do next."}
+              : "Know Where You Stand. Learn What It Takes."}
           </h1>
           <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg dark:text-slate-300">
-            AI Career Intelligence turns your documents into a profile, then compares it with private-sector roles or
-            sarkari exam syllabi. Gaps, roadmaps, and matches stay inspectable — not a black box.
+          AI Career Intelligence checks your skills against private jobs or government exams, finds your skill gaps, shows what to learn, and helps you prepare with clear roadmaps and job matches — all in one place.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link to={primaryHref} className="w-full sm:w-auto">
@@ -190,7 +189,7 @@ export function LandingPage() {
               </Button>
             </Link>
             {signedIn ? (
-              <Link to="/copilot" className="w-full sm:w-auto">
+              <Link to="/dashboard?copilot=1" className="w-full sm:w-auto">
                 <Button variant="outline" size="lg" className="w-full sm:w-auto">
                   <MessageSquare className="h-4 w-4" />
                   Ask copilot

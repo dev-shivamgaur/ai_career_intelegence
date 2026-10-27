@@ -6,8 +6,6 @@ import type {
   Roadmap,
   RoadmapTask,
   SkillGapItem,
-  SkillLesson,
-  PracticeCheck,
   WhyExplanation,
 } from "@/types";
 import { http } from "../http";
@@ -196,6 +194,7 @@ function mapSkillGap(g: Record<string, unknown>): SkillGapItem {
     status === "strong" ? 90 : status === "good" ? 70 : status === "needs_improvement" ? 40 : 8;
   return {
     id: String(g.id ?? g.skill ?? ""),
+    skillId: g.skillId ? String(g.skillId) : undefined,
     skill: String(g.skill),
     category: String(g.category ?? "Tools"),
     currentStatus: status,
@@ -217,64 +216,6 @@ export async function getSkillGaps(): Promise<SkillGapItem[]> {
 export async function recalculateSkillGaps(): Promise<SkillGapItem[]> {
   const rows = await http.post<Array<Record<string, unknown>>>("/skill-gaps/recalculate");
   return rows.map(mapSkillGap);
-}
-
-export async function getSkillLesson(id: string, phase?: string): Promise<SkillLesson> {
-  const qs = phase ? `?phase=${encodeURIComponent(phase)}` : "";
-  const raw = await http.get<Record<string, unknown>>(`/skill-gaps/${id}/lesson${qs}`, {
-    timeoutMs: 90_000,
-  });
-  const questions = Array.isArray(raw.questions)
-    ? (raw.questions as Array<Record<string, unknown>>).map((q) => ({
-        id: String(q.id ?? ""),
-        prompt: String(q.prompt ?? ""),
-      }))
-    : [];
-  return {
-    skill: String(raw.skill ?? ""),
-    learn: String(raw.learn ?? ""),
-    practice: String(raw.practice ?? ""),
-    example: String(raw.example ?? ""),
-    outline: Array.isArray(raw.outline) ? raw.outline.map(String) : [],
-    level: raw.level ? String(raw.level) : undefined,
-    evidenced: Boolean(raw.evidenced),
-    band: raw.band ? String(raw.band) : undefined,
-    seniority: raw.seniority as SkillLesson["seniority"],
-    educationLevel: raw.educationLevel ? String(raw.educationLevel) : undefined,
-    where: Array.isArray(raw.where) ? raw.where.map(String) : [],
-    questions,
-    evidencePrompt: raw.evidencePrompt ? String(raw.evidencePrompt) : undefined,
-    phase: raw.phase ? String(raw.phase) : undefined,
-    questionCount: raw.questionCount != null ? Number(raw.questionCount) : undefined,
-  };
-}
-
-export async function practiceSkillGap(
-  id: string,
-  note?: string,
-  answers?: Array<{ id: string; text: string; prompt?: string }>,
-): Promise<{ gaps: SkillGapItem[]; check?: PracticeCheck }> {
-  const raw = await http.post<Record<string, unknown>>(
-    `/skill-gaps/${id}/practice`,
-    { note, answers },
-    { timeoutMs: 120_000 },
-  );
-  const rows = Array.isArray(raw)
-    ? raw
-    : Array.isArray(raw.gaps)
-      ? (raw.gaps as Array<Record<string, unknown>>)
-      : [];
-  const checkRaw = !Array.isArray(raw) && raw.check && typeof raw.check === "object" ? (raw.check as Record<string, unknown>) : null;
-  return {
-    gaps: rows.map(mapSkillGap),
-    check: checkRaw
-      ? {
-          score: Number(checkRaw.score ?? 0),
-          passed: Boolean(checkRaw.passed),
-          feedback: String(checkRaw.feedback ?? ""),
-        }
-      : undefined,
-  };
 }
 
 export async function generateRoadmap(): Promise<Roadmap> {

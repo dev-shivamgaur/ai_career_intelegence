@@ -8,6 +8,7 @@ import { LlmService } from '../ai/llm.service';
 import { tierPathCopy } from '../ai/learner-tier';
 import { scoreAnswers } from '../ai/lesson-check';
 import { TaskStatus } from '../prisma/client';
+import { roadmapTaskPatch } from './task-patch';
 
 @Injectable()
 export class RoadmapService {
@@ -82,8 +83,9 @@ export class RoadmapService {
       counts[key] += 1;
       if (task.status === TaskStatus.COMPLETED) completed += 1;
     }
-    const selected = phase ? this.phaseKey(phase) : '7d';
-    const tasks = roadmap.tasks.filter((task) => this.phaseKey(task.phase) === selected);
+    const showAll = phase === 'all';
+    const selected = showAll ? null : phase ? this.phaseKey(phase) : '7d';
+    const tasks = showAll ? roadmap.tasks : roadmap.tasks.filter((task) => this.phaseKey(task.phase) === selected);
     const total = roadmap.tasks.length;
     return {
       id: roadmap.id,
@@ -149,10 +151,7 @@ export class RoadmapService {
     }
     await this.prisma.roadmapTask.update({
       where: { id: taskId },
-      data: {
-        ...(dto.status ? { status: dto.status } : {}),
-        ...(dto.note !== undefined ? { note: dto.note } : {}),
-      },
+      data: roadmapTaskPatch(dto),
     });
     if (dto.status === TaskStatus.COMPLETED) {
       await this.skillGaps.applySkillPractice(userId, task.relatedSkill ?? task.title);

@@ -112,16 +112,17 @@ Never invent documents the user does not have.`,
       ),
     ]);
 
-    const structured = await this.llm
-      .chat({ temperature: 0 })
-      .withStructuredOutput(careerAnalysisSchema)
-      .invoke([
+    const structured = await this.llm.structured(
+      careerAnalysisSchema,
+      [
         new SystemMessage(
           `Score 0-100 using only the transcript. evidence.kind must be profile|document|market|research|exam.
 If a dimension has little evidence, score conservatively. Do not invent employers.`,
         ),
         new HumanMessage(transcript),
-      ]);
+      ],
+      { temperature: 0, label: 'Career analysis' },
+    );
 
     const parsed = careerAnalysisSchema.parse(structured) as CareerAnalysisResult;
     const { estimatedMatch } = this.recommendations.estimateCareerMatch({
@@ -157,17 +158,18 @@ Prefer live URLs from tools. Then stop so a structured report can be written.`,
       new HumanMessage(`Research this query and gather sources: ${query}`),
     ]);
 
-    const structured = await this.llm
-      .chat({ temperature: 0 })
-      .withStructuredOutput(researchReportSchema)
-      .invoke([
+    const structured = await this.llm.structured(
+      researchReportSchema,
+      [
         new SystemMessage(
           `Build a research report from the transcript. source.type must be JOB|LEARNING|GOVERNMENT|CAREER_GUIDE|COMMUNITY.
 quality must be OFFICIAL|TRUSTED|ESTABLISHED|COMMUNITY|UNVERIFIED.
 Use real URLs and domains from the tool output when present.`,
         ),
         new HumanMessage(transcript),
-      ]);
+      ],
+      { temperature: 0, label: 'Research report' },
+    );
     return researchReportSchema.parse(structured);
   }
 
@@ -180,15 +182,16 @@ Do not mention third-party syllabus websites. Then stop for structured task JSON
       new HumanMessage('Create a 7/30/60/90/180 day roadmap grounded in this user skill gaps.'),
     ]);
 
-    const structured = await this.llm
-      .chat({ temperature: 0 })
-      .withStructuredOutput(roadmapPlanSchema)
-      .invoke([
+    const structured = await this.llm.structured(
+      roadmapPlanSchema,
+      [
         new SystemMessage(
           'Emit a practical roadmap. phase must be D7, D30, D60, D90, or D180. priority HIGH|MEDIUM|LOW.',
         ),
         new HumanMessage(transcript),
-      ]);
+      ],
+      { temperature: 0, label: 'Roadmap plan' },
+    );
     return roadmapPlanSchema.parse(structured);
   }
 
@@ -247,6 +250,12 @@ Do not mention third-party syllabus websites. Then stop for structured task JSON
       tool(async () => this.toolsApi.getSkillGaps(userId), {
         name: 'get_skill_gaps',
         description: 'Current skill gaps vs the target career.',
+        schema: z.object({ reason: z.string().optional() }),
+      }),
+      tool(async () => this.toolsApi.marketSnapshotDiff(userId), {
+        name: 'market_snapshot_diff',
+        description:
+          'Compare the latest monthly ACTIVE_STOCK market snapshot with the previous complete month for the user career. Say when history is missing. Never invent percentages or treat the open rolling period as history.',
         schema: z.object({ reason: z.string().optional() }),
       }),
       tool(async () => this.toolsApi.getRoadmap(userId), {
@@ -389,7 +398,7 @@ Do not mention third-party syllabus websites. Then stop for structured task JSON
         if (chosen) {
           try {
             output = String(
-              await withTimeout(chosen.invoke(call.args ?? {}), 18_000, `Tool ${call.name}`),
+              await withTimeout(chosen.invoke(call.args ?? {}), 45_000, `Tool ${call.name}`),
             );
           } catch (err) {
             output = `Tool ${call.name} failed: ${(err as Error).message}`;

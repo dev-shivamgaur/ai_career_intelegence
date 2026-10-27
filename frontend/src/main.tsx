@@ -1,7 +1,7 @@
 import { StrictMode, Suspense, lazy, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { Provider } from "react-redux";
-import { RouterProvider, createBrowserRouter } from "react-router-dom";
+import { Navigate, RouterProvider, createBrowserRouter } from "react-router-dom";
 import "./index.css";
 import { store } from "./store";
 import { StoreEffects } from "./store/StoreEffects";
@@ -46,7 +46,6 @@ const SarkariExamPage = lazy(() =>
   import("@/pages/Sarkari/SarkariPages").then((m) => ({ default: m.SarkariExamPage })),
 );
 const ResearchPage = lazy(() => import("@/pages/Research/ResearchPage").then((m) => ({ default: m.ResearchPage })));
-const CopilotPage = lazy(() => import("@/pages/Copilot/CopilotPage").then((m) => ({ default: m.CopilotPage })));
 const ProgressPage = lazy(() => import("@/pages/Progress/ProgressPage").then((m) => ({ default: m.ProgressPage })));
 const SettingsPage = lazy(() => import("@/pages/Settings/SettingsPage").then((m) => ({ default: m.SettingsPage })));
 const AdminPage = lazy(() => import("@/pages/Admin/AdminPage").then((m) => ({ default: m.AdminPage })));
@@ -75,7 +74,17 @@ const AdminMarketDemandPage = lazy(() =>
 const AdminMarketComparePage = lazy(() =>
   import("@/pages/Admin/AdminMarketComparePage").then((m) => ({ default: m.AdminMarketComparePage })),
 );
+const AdminCompanyIntelPage = lazy(() =>
+  import("@/pages/Admin/AdminCompanyIntelPage").then((m) => ({ default: m.AdminCompanyIntelPage })),
+);
+const AdminLearningResourcesPage = lazy(() =>
+  import("@/pages/Admin/AdminLearningResourcesPage").then((m) => ({ default: m.AdminLearningResourcesPage })),
+);
+const AdminPrepPackagesPage = lazy(() =>
+  import("@/pages/Admin/AdminPrepPackagesPage").then((m) => ({ default: m.AdminPrepPackagesPage })),
+);
 const MarketPage = lazy(() => import("@/pages/Market/MarketPage").then((m) => ({ default: m.MarketPage })));
+const PreparePage = lazy(() => import("@/pages/Prepare/PreparePage").then((m) => ({ default: m.PreparePage })));
 
 function withSuspense(element: ReactNode) {
   return <Suspense fallback={<RouteFallback />}>{element}</Suspense>;
@@ -110,9 +119,11 @@ const router = createBrowserRouter([
           { path: "/sarkari-naukri/:slug", element: withSuspense(<SarkariExamPage />) },
           { path: "/market", element: withSuspense(<MarketPage />) },
           { path: "/research", element: withSuspense(<ResearchPage />) },
-          { path: "/copilot", element: withSuspense(<CopilotPage />) },
+          { path: "/copilot", element: <Navigate to="/dashboard?copilot=1" replace /> },
           { path: "/progress", element: withSuspense(<ProgressPage />) },
           { path: "/settings", element: withSuspense(<SettingsPage />) },
+          { path: "/prepare/task/:taskId", element: withSuspense(<PreparePage />) },
+          { path: "/prepare/:skillId", element: withSuspense(<PreparePage />) },
         ],
       },
     ],
@@ -138,6 +149,9 @@ const router = createBrowserRouter([
           { path: "/admin/market/skills", element: withSuspense(<AdminMarketSkillsPage />) },
           { path: "/admin/market/demand", element: withSuspense(<AdminMarketDemandPage />) },
           { path: "/admin/market/compare", element: withSuspense(<AdminMarketComparePage />) },
+          { path: "/admin/companies", element: withSuspense(<AdminCompanyIntelPage />) },
+          { path: "/admin/resources", element: withSuspense(<AdminLearningResourcesPage />) },
+          { path: "/admin/prep", element: withSuspense(<AdminPrepPackagesPage />) },
         ],
       },
     ],

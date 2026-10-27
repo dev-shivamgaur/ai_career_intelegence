@@ -1,4 +1,5 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Module, forwardRef } from '@nestjs/common';
+import { MarketModule } from '../market/market.module';
 import { LlmService } from './llm.service';
 import { EmbeddingService } from './embedding.service';
 import { DocumentIntelligenceService } from './document-intelligence.service';
@@ -12,6 +13,7 @@ import { PracticePlanService } from './practice-plan.service';
 
 @Global()
 @Module({
+  imports: [forwardRef(() => MarketModule)],
   providers: [
     LlmService,
     EmbeddingService,

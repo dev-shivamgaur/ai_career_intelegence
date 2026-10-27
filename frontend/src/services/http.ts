@@ -153,6 +153,7 @@ client.interceptors.response.use(
   },
   async (error: AxiosError<Envelope<unknown>>) => {
     if (!shouldSkipLoader(error.config as InternalAxiosRequestConfig | undefined)) endQuery();
+    if (isAbortError(error)) return Promise.reject(error);
     const status = error.response?.status ?? 0;
     const original = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
     const body = error.response?.data;
@@ -217,17 +218,24 @@ async function refreshTokens(): Promise<boolean> {
   }
 }
 
-type RequestOpts = { silent?: boolean; timeoutMs?: number };
+export type RequestOpts = { silent?: boolean; timeoutMs?: number; signal?: AbortSignal };
+
+export function isAbortError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { code?: string; name?: string };
+  return e.code === "ERR_CANCELED" || e.name === "CanceledError" || e.name === "AbortError";
+}
 
 function optsHeaders(opts?: RequestOpts) {
   return opts?.silent ? { "X-Skip-Loader": "1" } : undefined;
 }
 
 function optsConfig(opts?: RequestOpts) {
-  const config: { headers?: Record<string, string>; timeout?: number } = {};
+  const config: { headers?: Record<string, string>; timeout?: number; signal?: AbortSignal } = {};
   const headers = optsHeaders(opts);
   if (headers) config.headers = headers;
   if (opts?.timeoutMs) config.timeout = opts.timeoutMs;
+  if (opts?.signal) config.signal = opts.signal;
   return config;
 }
 
@@ -236,6 +244,9 @@ function optsConfig(opts?: RequestOpts) {
 const inflightGets = new Map<string, Promise<unknown>>();
 
 function getOnce<T>(path: string, opts?: RequestOpts): Promise<T> {
+  if (opts?.signal) {
+    return client.get<T>(path, optsConfig(opts)).then((response) => response.data as T);
+  }
   const key = `${opts?.silent ? "1" : "0"}:${path}`;
   const existing = inflightGets.get(key);
   if (existing) return existing as Promise<T>;

@@ -5,12 +5,12 @@ type Variant = "primary" | "secondary" | "ghost" | "danger" | "outline";
 type Size = "sm" | "md" | "lg";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-brand-600 text-white hover:bg-brand-700 disabled:bg-brand-400",
-  secondary: "bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white",
-  ghost: "bg-transparent text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800",
-  danger: "bg-red-600 text-white hover:bg-red-700",
+  primary: "bg-ink text-[#F4FBFA] hover:bg-brand-700 disabled:bg-[#B3B3B3] dark:bg-[#D1D0D0] dark:text-ink dark:hover:bg-white",
+  secondary: "bg-[#5C4E4E] text-[#F4FBFA] hover:bg-brand-800 dark:bg-[#5C4E4E] dark:text-[#D1D0D0]",
+  ghost: "bg-transparent text-ink hover:bg-brand-100 dark:text-[#D1D0D0] dark:hover:bg-[#2A2424]",
+  danger: "bg-[#5C4E4E] text-white hover:bg-brand-800",
   outline:
-    "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-transparent dark:text-slate-100 dark:hover:bg-slate-800",
+    "border border-[#C4C4C4] bg-surface-card text-ink hover:bg-brand-50 dark:border-[#5C4E4E] dark:bg-transparent dark:text-[#D1D0D0] dark:hover:bg-[#2A2424]",
 };
 
 const sizes: Record<Size, string> = {

@@ -30,6 +30,9 @@ const links = [
   { to: "/admin/market/skills", label: "Skill review", icon: HiOutlineCollection },
   { to: "/admin/market/demand", label: "Market demand", icon: HiOutlineTrendingUp },
   { to: "/admin/market/compare", label: "Roadmap vs market", icon: HiOutlineChartBar },
+  { to: "/admin/companies", label: "Companies", icon: HiOutlineOfficeBuilding },
+  { to: "/admin/resources", label: "Learning resources", icon: HiOutlineCollection },
+  { to: "/admin/prep", label: "Prep packages", icon: HiOutlineCollection },
 ];
 
 export function AdminLayout() {
@@ -37,7 +40,7 @@ export function AdminLayout() {
   const { theme, toggle } = useTheme();
   return (
     <div className="min-h-screen bg-surface text-ink dark:bg-surface-dark dark:text-stone-100">
-      <header className="flex items-center justify-between gap-4 border-b border-stone-200 bg-white px-4 py-3 dark:border-stone-800 dark:bg-surface-dark">
+      <header className="flex items-center justify-between gap-4 border-b border-[#C4C4C4] bg-surface-card px-4 py-3 dark:border-[#3A3333] dark:bg-surface-dark">
         <div className="min-w-0">
           <BrandLogo to="/admin" />
           <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Admin console</p>
@@ -64,8 +67,8 @@ export function AdminLayout() {
           </div>
         </div>
       </header>
-      <div className="flex min-h-[calc(100vh-4.5rem)]">
-        <nav className="w-56 shrink-0 border-r border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-surface-dark">
+      <div className="flex min-h-[calc(100vh-4.5rem)] flex-col md:flex-row">
+        <nav className="flex gap-1 overflow-x-auto border-b border-[#C4C4C4] bg-surface-card p-2 dark:border-[#3A3333] dark:bg-surface-dark md:w-56 md:shrink-0 md:flex-col md:overflow-visible md:border-b-0 md:border-r md:p-3">
           {links.map((link) => {
             const Icon = link.icon;
             return (
@@ -74,7 +77,7 @@ export function AdminLayout() {
                 to={link.to}
                 end={link.end}
                 className={({ isActive }) =>
-                  `mb-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
+                  `mb-0 flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium md:mb-1 ${
                     isActive
                       ? "bg-brand-100 text-brand-800 dark:bg-brand-900/50 dark:text-brand-100"
                       : "text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800/60"

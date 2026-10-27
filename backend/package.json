@@ -13,6 +13,7 @@
     "start:worker:prod": "node dist/worker",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "seed:prep": "ts-node scripts/seed-prep-packages.ts",
     "test": "jest --passWithNoTests"
   },
   "dependencies": {

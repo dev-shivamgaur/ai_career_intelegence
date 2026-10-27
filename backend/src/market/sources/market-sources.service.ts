@@ -156,7 +156,7 @@ export class MarketSourcesService {
         robots: result.robots,
         durationMs: Date.now() - startedAt,
         jobCount: result.jobs.length,
-        sample: result.jobs.slice(0, 5).map((j) => ({
+        sample: result.jobs.map((j) => ({
           externalId: j.externalId,
           title: j.title,
           location: j.location,

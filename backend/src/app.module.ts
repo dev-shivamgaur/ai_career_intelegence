@@ -28,6 +28,8 @@ import { QueueModule } from './queue/queue.module';
 import { IntelConfigModule } from './intel-config/intel-config.module';
 import { SkillIntelModule } from './skill-intel/skill-intel.module';
 import { MarketModule } from './market/market.module';
+import { LearnerModule } from './learner/learner.module';
+import { PreparationModule } from './preparation/preparation.module';
 
 @Module({
   imports: [
@@ -60,6 +62,13 @@ import { MarketModule } from './market/market.module';
     IntelConfigModule,
     SkillIntelModule,
     MarketModule,
+    LearnerModule,
+    PreparationModule,
   ],
 })
-export class AppModule {}
+export class AppModule {
+  constructor() {
+    console.log('AppModule constructor',QueueModule);
+    console.log('AppModule loaded');
+  }
+}

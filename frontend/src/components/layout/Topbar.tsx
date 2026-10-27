@@ -1,5 +1,6 @@
 import { Avatar } from "@/components/ui/Avatar";
 import { Dropdown, DropdownItem } from "@/components/ui/Dropdown";
+import { isAbortError } from "@/services/http";
 import { useAuth, useTheme, useToast } from "@/store/hooks";
 import * as appApi from "@/services/api/appApi";
 import type { NotificationItem, SearchResult } from "@/types";
@@ -16,6 +17,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [notes, setNotes] = useState<NotificationItem[]>([]);
   const [openSearch, setOpenSearch] = useState(false);
+  const [searchState, setSearchState] = useState<"idle" | "loading" | "done">("idle");
   const [notesLoaded, setNotesLoaded] = useState(false);
 
   async function loadNotes() {
@@ -26,28 +28,42 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
   }
 
   useEffect(() => {
+    const controller = new AbortController();
     const t = setTimeout(() => {
       if (query.trim().length < 2) {
         setResults([]);
+        setSearchState("idle");
         return;
       }
-      void appApi.searchCatalog(query).then(setResults);
+      setSearchState("loading");
+      void appApi.searchCatalog(query, { signal: controller.signal }).then((rows) => {
+        if (controller.signal.aborted) return;
+        setResults(rows);
+        setSearchState("done");
+      }).catch((err: unknown) => {
+        if (isAbortError(err) || controller.signal.aborted) return;
+        setResults([]);
+        setSearchState("done");
+      });
     }, 180);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      controller.abort();
+    };
   }, [query]);
 
   const unread = notes.filter((n) => !n.read).length;
 
   return (
-    <header className="flex h-14 items-center gap-2 border-b border-slate-200 bg-white px-3 dark:border-slate-800 dark:bg-slate-950 sm:h-16 sm:gap-3 sm:px-4">
+    <header className="flex h-14 items-center justify-between border-b border-[#C4C4C4] bg-surface-card px-3 dark:border-[#3A3333] dark:bg-surface-dark sm:h-16 sm:gap-3 sm:px-4">
       <button className="shrink-0 rounded-md p-2 lg:hidden" onClick={onMenu} aria-label="Open navigation">
         <Menu className="h-5 w-5" />
       </button>
       <div className="relative min-w-0 max-w-xl flex-1">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <input
-          aria-label="Search skills, tasks, jobs, and sources"
-          placeholder="Search…"
+          aria-label="Search your skill gaps, roadmap tasks, and jobs"
+          placeholder="Search your skills, tasks, and jobs"
           className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm dark:border-slate-700 dark:bg-slate-900"
           value={query}
           onChange={(e) => {
@@ -56,25 +72,38 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
           }}
           onFocus={() => setOpenSearch(true)}
         />
-        {openSearch && results.length > 0 && (
-          <ul className="absolute z-30 mt-1 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card dark:border-slate-700 dark:bg-slate-900">
-            {results.map((r) => (
-              <li key={r.id}>
-                <Link
-                  to={r.href}
-                  className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
-                  onClick={() => {
-                    setOpenSearch(false);
-                    setQuery("");
-                  }}
-                >
-                  <span className="font-medium">{r.title}</span>
-                  <span className="ml-2 text-xs uppercase text-slate-400">{r.category}</span>
-                  <p className="text-xs text-slate-500">{r.subtitle}</p>
-                </Link>
-              </li>
-            ))}
-          </ul>
+        {openSearch && query.trim().length >= 2 && (
+          <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card dark:border-slate-700 dark:bg-slate-900">
+            <p className="border-b border-slate-100 px-3 py-2 text-xs leading-5 text-slate-500 dark:border-slate-800">
+              Looks through skill gaps, roadmap tasks, and jobs already on your account. It does not search the public web.
+            </p>
+            {searchState === "loading" ? (
+              <p className="px-3 py-3 text-sm text-slate-500">Searching your plan…</p>
+            ) : results.length === 0 ? (
+              <p className="px-3 py-3 text-sm">
+                Not found. <span className="font-medium">{query.trim()}</span> is not on your skill gap, roadmap, or jobs.
+              </p>
+            ) : (
+              <ul>
+                {results.map((r) => (
+                  <li key={r.id}>
+                    <Link
+                      to={r.href}
+                      className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+                      onClick={() => {
+                        setOpenSearch(false);
+                        setQuery("");
+                      }}
+                    >
+                      <span className="font-medium">{r.title}</span>
+                      <span className="ml-2 text-xs uppercase text-slate-400">{r.category}</span>
+                      <p className="text-xs text-slate-500">{r.subtitle}</p>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </div>
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">

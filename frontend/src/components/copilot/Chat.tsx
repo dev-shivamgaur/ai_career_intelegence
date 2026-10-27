@@ -11,10 +11,10 @@ export function AIMessage({
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+        className={`max-w-[90%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
           isUser
             ? "bg-brand-600 text-white"
-            : "border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
+            : "border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900"
         }`}
       >
         <p className="whitespace-pre-wrap">
@@ -65,7 +65,7 @@ export function ChatInput({
       </label>
       <input
         id="copilot-input"
-        className="h-11 flex-1 rounded-lg border border-slate-300 px-3 text-sm dark:border-slate-600 dark:bg-slate-900"
+        className="h-10 flex-1 rounded-xl border border-slate-300 px-3 text-sm dark:border-slate-600 dark:bg-slate-900"
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
@@ -74,7 +74,7 @@ export function ChatInput({
       <button
         type="submit"
         disabled={disabled}
-        className="h-11 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white disabled:opacity-50"
+        className="h-10 rounded-xl bg-brand-600 px-4 text-sm font-medium text-white disabled:opacity-50"
       >
         Send
       </button>

@@ -11,6 +11,9 @@ import { useToast } from "@/store/hooks";
 import * as profileApi from "@/services/api/profileApi";
 import type { Profile } from "@/types";
 import { useState } from "react";
+import { useAsyncData } from "@/hooks/useAsyncData";
+import { disconnectGithub, listEvidence, listGithub, scanGithub } from "@/services/api/learnerApi";
+import { HiOutlineLink } from "react-icons/hi";
 import { useNavigate } from "react-router-dom";
 
 export function ProfilePage() {
@@ -18,6 +21,9 @@ export function ProfilePage() {
   const { push } = useToast();
   const { data, loading, error, errorCode, reload, setData } = useProfile();
   const [editing, setEditing] = useState<string | null>(null);
+  const evidence = useAsyncData(() => listEvidence());
+  const githubLinks = useAsyncData(() => listGithub());
+  const [repoUrl, setRepoUrl] = useState("");
 
   if (loading) return <ProfileSkeleton />;
   if (error || !data) {
@@ -204,19 +210,20 @@ export function ProfilePage() {
                 <p className="text-sm text-slate-500">No projects yet — one solid project is enough to start.</p>
               )}
               {data.projects.map((p) => (
-                <div key={p.id} className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <div key={p.id} className="rounded-lg border border-[#C4C4C4] p-3 dark:border-[#3A3333]">
                   <p className="text-sm font-medium">{p.name}</p>
-                  <p className="mt-1 text-sm leading-relaxed text-slate-500">{p.description}</p>
-                  {p.link && (
+                  {p.description ? <p className="mt-1 text-sm leading-relaxed text-[#5C4E4E] dark:text-[#988686]">{p.description}</p> : null}
+                  {p.link ? (
                     <a
                       href={p.link}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-2 inline-block text-sm font-medium text-brand-700"
+                      className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-ink underline dark:text-[#AFEEEE]"
                     >
-                      {p.link}
+                      <HiOutlineLink className="h-3.5 w-3.5" />
+                      {p.link.replace(/^https?:\/\//, "")}
                     </a>
-                  )}
+                  ) : null}
                   {/GitHub analysis/i.test(p.description) ? (
                     <p className="mt-1 text-xs font-medium text-brand-700">Analyzed from GitHub</p>
                   ) : null}
@@ -228,6 +235,68 @@ export function ProfilePage() {
             </CardBody>
           </Card>
         )}
+
+        <Card>
+          <CardHeader title="Skill evidence" description="A new resume or GitHub scan adds a record. Older records stay." />
+          <CardBody className="space-y-2 text-sm">
+            <div className="flex gap-2">
+              <Input placeholder="https://github.com/owner/repo" value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} />
+              <Button
+                size="sm"
+                onClick={() =>
+                  void scanGithub(repoUrl).then(() => {
+                    setRepoUrl("");
+                    void evidence.reload();
+                    void githubLinks.reload();
+                  })
+                }
+              >
+                Scan public repo
+              </Button>
+            </div>
+            <ul className="space-y-2">
+              {(githubLinks.data ?? []).map((link) => (
+                <li key={link.id} className="rounded-lg border border-[#C4C4C4] p-3 dark:border-[#3A3333]">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">
+                        {link.owner}/{link.repo}
+                        {link.revokedAt ? " · disconnected" : ""}
+                      </p>
+                      <a
+                        href={link.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-flex items-center gap-1 break-all text-sm text-ink underline dark:text-[#AFEEEE]"
+                      >
+                        <HiOutlineLink className="h-3.5 w-3.5 shrink-0" />
+                        {link.url}
+                      </a>
+                    </div>
+                    {!link.revokedAt && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void disconnectGithub(link.id).then(() => githubLinks.reload())}
+                      >
+                        Disconnect
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <ul className="space-y-1">
+              {(evidence.data ?? []).slice(0, 12).map((row) => (
+                <li key={row.id}>
+                  {row.skill} · {row.source} · {row.quality}
+                  {row.current ? "" : " · earlier"} · {new Date(row.observedAt).toLocaleDateString()}
+                </li>
+              ))}
+            </ul>
+            {evidence.data && evidence.data.length === 0 && <p className="text-slate-500">No skill evidence recorded yet.</p>}
+          </CardBody>
+        </Card>
 
         {data.experience.length > 0 && (
           <Card>

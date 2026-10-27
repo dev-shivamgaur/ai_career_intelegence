@@ -7,6 +7,32 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class MarketJobsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async companySummary() {
+    const [companies, counts] = await Promise.all([
+      this.prisma.company.findMany({
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          active: true,
+          sources: { select: { id: true, type: true, enabled: true, lastSuccessAt: true, lastError: true } },
+        },
+      }),
+      this.prisma.marketJob.groupBy({ by: ['companyId', 'status'], _count: { _all: true } }),
+    ]);
+    const byCompany = new Map<string, Record<string, number>>();
+    for (const row of counts) {
+      const bucket = byCompany.get(row.companyId) ?? {};
+      bucket[row.status] = row._count._all;
+      byCompany.set(row.companyId, bucket);
+    }
+    return companies.map((company) => {
+      const jobs = byCompany.get(company.id) ?? {};
+      const posted = Object.values(jobs).reduce((sum, n) => sum + n, 0);
+      return { ...company, jobs, posted };
+    });
+  }
+
   async list(params: { companyId?: string; status?: string; q?: string; skip?: number; take?: number }) {
     const where: Prisma.MarketJobWhereInput = {};
     if (params.companyId) where.companyId = params.companyId;

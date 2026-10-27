@@ -1,5 +1,5 @@
 import type { ChatMessage, CopilotContext, NotificationItem, ProgressSnapshot, SearchResult } from "@/types";
-import { http } from "../http";
+import { http, isAbortError, type RequestOpts } from "../http";
 import { mapEnum } from "../mappers";
 
 export async function getNotifications(): Promise<NotificationItem[]> {
@@ -136,32 +136,66 @@ export async function streamCopilotMessage(
   return { ...doneMeta, reply };
 }
 
-export async function searchCatalog(query: string): Promise<SearchResult[]> {
+export async function searchCatalog(query: string, opts?: RequestOpts): Promise<SearchResult[]> {
   const q = query.trim().toLowerCase();
   if (q.length < 2) return [];
+  const keep = <T,>(fallback: T) => (err: unknown) => {
+    if (isAbortError(err)) throw err;
+    return fallback;
+  };
   const [jobs, gaps, roadmap] = await Promise.all([
-    http.get<Array<Record<string, unknown>>>("/jobs").catch(() => []),
-    http.get<Array<Record<string, unknown>>>("/skill-gaps").catch(() => []),
-    http.get<Record<string, unknown>>("/roadmap").catch(() => ({ tasks: [] })),
+    http.get<Array<Record<string, unknown>>>("/jobs", opts).catch(keep([])),
+    http.get<Array<Record<string, unknown>>>("/skill-gaps", opts).catch(keep([])),
+    http.get<Record<string, unknown>>("/roadmap?phase=all", opts).catch(keep({ tasks: [] })),
   ]);
   const results: SearchResult[] = [];
   for (const job of jobs) {
     const title = `${job.role} at ${job.company}`;
     if (title.toLowerCase().includes(q)) {
-      results.push({ id: String(job.id), category: "job", title, subtitle: "Job match", href: "/jobs" });
+      results.push({
+        id: String(job.id),
+        category: "job",
+        title,
+        subtitle: "Saved job on your Jobs page",
+        href: `/jobs?job=${encodeURIComponent(String(job.id))}`,
+      });
     }
   }
   for (const gap of gaps) {
     const title = String(gap.skill ?? "");
     if (title.toLowerCase().includes(q)) {
-      results.push({ id: title, category: "skill", title, subtitle: "Skill gap", href: "/skill-gap" });
+      results.push({
+        id: `gap-${title}`,
+        category: "skill",
+        title,
+        subtitle: "Opens this skill on Skill gap",
+        href: `/skill-gap?skill=${encodeURIComponent(title)}`,
+      });
     }
   }
   for (const task of (roadmap.tasks as Array<Record<string, unknown>>) ?? []) {
     const title = String(task.title ?? "");
-    if (title.toLowerCase().includes(q)) {
-      results.push({ id: String(task.id), category: "task", title, subtitle: "Roadmap", href: "/roadmap" });
+    const skill = String(task.relatedSkill ?? title);
+    const phase = roadmapPhaseParam(String(task.phase ?? ""));
+    if (title.toLowerCase().includes(q) || skill.toLowerCase().includes(q)) {
+      results.push({
+        id: `task-${String(task.id)}`,
+        category: "task",
+        title,
+        subtitle: `Roadmap · ${phase}`,
+        href: `/roadmap?skill=${encodeURIComponent(skill || title)}&phase=${phase}`,
+      });
     }
   }
   return results.slice(0, 8);
+}
+
+function roadmapPhaseParam(phase: string): string {
+  const digits = phase.toUpperCase().replace(/[^0-9]/g, "");
+  if (digits === "7") return "7d";
+  if (digits === "60") return "60d";
+  if (digits === "90") return "90d";
+  if (digits === "180") return "180d";
+  if (digits === "30") return "30d";
+  return "7d";
 }

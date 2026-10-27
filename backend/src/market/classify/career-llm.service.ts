@@ -32,10 +32,9 @@ export class CareerLlmClassifier {
     if (!cls.llmFallback || !candidates.length || !this.llm.isConfigured()) return null;
     if (!(await takeLlmBudget(this.redis, extraction.llmDailyLimit))) return null;
     try {
-      const res = (await this.llm
-        .chat({ temperature: 0 })
-        .withStructuredOutput(choiceSchema)
-        .invoke([
+      const res = await this.llm.structured(
+        choiceSchema,
+        [
           new SystemMessage(
             'Decide which career tracks a job posting belongs to. Answer with slugs copied from the options; ' +
               'an empty list when none fits. Judge by the work described, not by single keywords.',
@@ -43,7 +42,9 @@ export class CareerLlmClassifier {
           new HumanMessage(
             `Title: ${job.title}\nSkills: ${job.skills.slice(0, 30).join(', ')}\nOptions:\n${candidates.map((c) => `- ${c.slug} (${c.title})`).join('\n')}`,
           ),
-        ])) as z.infer<typeof choiceSchema>;
+        ],
+        { temperature: 0, label: 'Career classify' },
+      );
       const allowed = new Set(candidates.map((c) => c.slug));
       return { slugs: [...new Set(res.careers.filter((s) => allowed.has(s)))], confidence: Math.min(res.confidence, LLM_CONFIDENCE_CAP) };
     } catch (err) {

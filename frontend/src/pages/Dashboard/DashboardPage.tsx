@@ -16,6 +16,7 @@ import * as careerApi from "@/services/api/careerApi";
 import * as profileApi from "@/services/api/profileApi";
 import type { GovernmentOpportunity } from "@/types";
 import { SarkariFlags } from "@/components/sarkari/SarkariFlags";
+import { openCopilot } from "@/components/copilot/copilotOpen";
 import { copilotSuggestionChips } from "@/lib/copilotSuggestions";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -68,9 +69,8 @@ export function DashboardPage() {
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
             {greetingForHour()}, {firstName(p.name || "there")}
           </h1>
-          <p className="mt-1.5 text-sm text-slate-500">
-            {p.profileStage?.label ?? p.status.replaceAll("_", " ")}
-            {p.careerGoal.title ? ` · ${p.careerGoal.title}` : ""}
+          <p className="mt-1.5 max-w-xl text-sm text-[#5C4E4E] dark:text-[#988686]">
+            Your documents and confirmed skills are compared with {p.careerGoal.title || "the role you pick"}. The cards below are the next gaps, the roadmap, and matching work.
           </p>
         </div>
         <div className="w-full sm:w-52">
@@ -94,6 +94,31 @@ export function DashboardPage() {
           </CardBody>
         </Card>
       )}
+
+      <Card>
+        <CardHeader
+          title="Where you are"
+          description="The header search finds a skill, roadmap task, or job you already have. It does not search the web. AI research is a separate page of public links for your role."
+        />
+        <CardBody>
+          <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {learnerSteps(p, gaps.length, (roadmap?.total ?? 0) > 0).map((step) => (
+              <li key={step.label}>
+                <Link
+                  to={step.href}
+                  className="block rounded-lg border border-[#E4E4E4] px-3 py-3 text-sm hover:border-[#988686] dark:border-[#3A3333]"
+                >
+                  <p className="text-xs uppercase tracking-wide text-[#5C4E4E] dark:text-[#988686]">
+                    {step.done ? "Done" : step.current ? "You are here" : "Later"}
+                  </p>
+                  <p className="mt-1 font-medium">{step.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-[#5C4E4E] dark:text-[#988686]">{step.detail}</p>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </CardBody>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="Status" value={p.status.replaceAll("_", " ")} icon={<UserRound className="h-4 w-4" />} />
@@ -279,13 +304,7 @@ export function DashboardPage() {
               {gaps.length ? (
                 <div className="space-y-3">
                   {gaps.slice(0, 5).map((g) => (
-                    <SkillGapCard
-                      key={g.id || g.skill}
-                      item={g}
-                      onPracticed={() => {
-                        void home.reload();
-                      }}
-                    />
+                    <SkillGapCard key={g.id || g.skill} item={g} />
                   ))}
                 </div>
               ) : (
@@ -343,7 +362,7 @@ export function DashboardPage() {
                 ? ["What should I revise this week?", "Am I eligible as a fresher graduate?", "How do I use 2 hours a day?"]
                 : ["What should I learn next?", "I only have 2 hours per day.", "Which skill should I prioritize?"]
             ).map((q) => (
-              <Button key={q} size="sm" variant="outline" onClick={() => navigate("/copilot", { state: { q } })}>
+              <Button key={q} size="sm" variant="outline" onClick={() => openCopilot({ q })}>
                 {q}
               </Button>
             ))}
@@ -352,6 +371,41 @@ export function DashboardPage() {
       </Card>
     </div>
   );
+}
+
+function learnerSteps(
+  profile: { careerGoal: { slug: string }; completionPercent: number },
+  gapCount: number,
+  hasRoadmap: boolean,
+) {
+  const steps = [
+    {
+      label: "Pick a role",
+      done: Boolean(profile.careerGoal.slug),
+      href: "/onboarding",
+      detail: "Skill gap, roadmap, and AI research all start from this role.",
+    },
+    {
+      label: "Fill your profile",
+      done: profile.completionPercent >= 50,
+      href: "/profile",
+      detail: "Resume, skills, and projects are the evidence the plan is judged from.",
+    },
+    {
+      label: "Open skill gap",
+      done: gapCount > 0,
+      href: "/skill-gap",
+      detail: "Topics still missing for your stack. Header search can open one of these.",
+    },
+    {
+      label: "Follow the roadmap",
+      done: hasRoadmap,
+      href: "/roadmap",
+      detail: "Practice tasks in the 7-day, 30-day, and later windows.",
+    },
+  ];
+  const currentIndex = steps.findIndex((step) => !step.done);
+  return steps.map((step, index) => ({ ...step, current: index === currentIndex }));
 }
 
 function SectionHeading({ title, to, linkLabel }: { title: string; to: string; linkLabel: string }) {

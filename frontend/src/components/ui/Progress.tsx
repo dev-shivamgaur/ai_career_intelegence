@@ -17,13 +17,13 @@ export function ProgressBar({
         </div>
       )}
       <div
-        className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
+        className="h-2 overflow-hidden rounded-full bg-[#D3D3D3] dark:bg-[#3A3333]"
         role="progressbar"
         aria-valuenow={clamped}
         aria-valuemin={0}
         aria-valuemax={100}
       >
-        <div className="h-full rounded-full bg-brand-600" style={{ width: `${clamped}%` }} />
+        <div className="h-full rounded-full bg-ink dark:bg-[#AFEEEE]" style={{ width: `${clamped}%` }} />
       </div>
     </div>
   );
@@ -36,13 +36,13 @@ export function ProgressRing({ value, size = 88, stroke = 8 }: { value: number; 
   const offset = circ - (clamped / 100) * circ;
   return (
     <svg width={size} height={size} className="-rotate-90" aria-label={`Progress ${clamped}%`}>
-      <circle cx={size / 2} cy={size / 2} r={r} stroke="currentColor" className="text-slate-200 dark:text-slate-700" strokeWidth={stroke} fill="none" />
+      <circle cx={size / 2} cy={size / 2} r={r} stroke="currentColor" className="text-[#D3D3D3] dark:text-[#3A3333]" strokeWidth={stroke} fill="none" />
       <circle
         cx={size / 2}
         cy={size / 2}
         r={r}
         stroke="currentColor"
-        className="text-brand-600"
+        className="text-ink dark:text-[#AFEEEE]"
         strokeWidth={stroke}
         fill="none"
         strokeDasharray={circ}

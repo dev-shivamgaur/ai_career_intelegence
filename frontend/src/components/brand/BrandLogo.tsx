@@ -18,7 +18,7 @@ export function BrandLogo({
           <span className="block truncate text-sm font-semibold leading-tight tracking-tight text-ink dark:text-stone-50">
             Career Intelligence
           </span>
-          <span className="hidden text-[11px] text-stone-500 sm:block dark:text-stone-400">Jobs and exam prep</span>
+          <span className="hidden text-[11px] text-stone-500 sm:block dark:text-stone-400">Measure Skills, Boost Career.</span>
         </span>
       )}
     </Link>

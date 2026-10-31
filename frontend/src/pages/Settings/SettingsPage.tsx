@@ -17,6 +17,7 @@ import { LogOut, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useProfile } from "@/context/ProfileContext";
+import { PlanCard } from "@/paid";
 
 export function SettingsPage() {
   const { logout } = useAuth();
@@ -92,6 +93,8 @@ export function SettingsPage() {
           </Button>
         }
       />
+
+      <PlanCard plan={profile.data?.plan} />
 
       <Card>
         <CardHeader

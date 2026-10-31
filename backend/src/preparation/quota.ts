@@ -1,33 +1,15 @@
 import { PrepPlan, PrepUsageKind } from '../prisma/client';
+import { prepLlmLimitFor, prepLlmLimitsFromEnv, type PrepLlmLimits } from '../paid/prep-llm-limits';
 
-export type PrepLimits = {
-  freeGenerates: number;
-  freeGrades: number;
-  paidGenerates: number;
-  paidGrades: number;
-  maxInputChars: number;
-  maxLessons: number;
-};
+/** @deprecated Prefer PrepLlmLimits from paid/ — kept as alias for preparation callers. */
+export type PrepLimits = PrepLlmLimits;
 
 export function prepLimitsFromEnv(env: NodeJS.ProcessEnv = process.env): PrepLimits {
-  const num = (key: string, fallback: number) => {
-    const parsed = Number(env[key]);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-  };
-  return {
-    freeGenerates: num('PREP_FREE_DAILY_GENERATES', 2),
-    freeGrades: num('PREP_FREE_DAILY_GRADES', 20),
-    paidGenerates: num('PREP_PAID_DAILY_GENERATES', 20),
-    paidGrades: num('PREP_PAID_DAILY_GRADES', 200),
-    maxInputChars: num('PREP_MAX_INPUT_CHARS', 4000),
-    maxLessons: num('PREP_MAX_LESSONS', 8),
-  };
+  return prepLlmLimitsFromEnv(env);
 }
 
 export function limitFor(plan: PrepPlan, kind: PrepUsageKind, limits: PrepLimits) {
-  const paid = plan === PrepPlan.PAID;
-  if (kind === PrepUsageKind.GENERATE) return paid ? limits.paidGenerates : limits.freeGenerates;
-  return paid ? limits.paidGrades : limits.freeGrades;
+  return prepLlmLimitFor(plan, kind, limits);
 }
 
 export function prepQuotaKey(userId: string, kind: PrepUsageKind, now = new Date()) {

@@ -5,9 +5,10 @@ import { AuthModule } from '../auth/auth.module';
 import { SkillGapModule } from '../skill-gap/skill-gap.module';
 import { SarkariModule } from '../sarkari/sarkari.module';
 import { LearnerModule } from '../learner/learner.module';
+import { PaidModule } from '../paid/paid.module';
 
 @Module({
-  imports: [AuthModule, SkillGapModule, SarkariModule, LearnerModule],
+  imports: [AuthModule, SkillGapModule, SarkariModule, LearnerModule, PaidModule],
   controllers: [DocumentsController],
   providers: [DocumentsService],
 })

@@ -17,6 +17,12 @@ import { shouldPromoteToWorkingProfessional } from '../ai/learner-tier';
 import { SkillLexiconService } from '../ai/skill-lexicon.service';
 import { SkillEvidenceService } from '../learner/skill-evidence.service';
 import { GithubEvidenceService } from '../learner/github-evidence.service';
+import { ResumeQuotaService } from '../paid/resume-quota.service';
+import {
+  clearResumeDerivedProfile,
+  extractionFromRow,
+  findLatestCompletedResume,
+} from './resume-rebuild';
 
 @Injectable()
 export class DocumentsService {
@@ -37,6 +43,7 @@ export class DocumentsService {
     private readonly lexicon: SkillLexiconService,
     private readonly skillEvidence: SkillEvidenceService,
     private readonly githubEvidence: GithubEvidenceService,
+    private readonly resumeQuota: ResumeQuotaService,
   ) {}
 
   async list(userId: string) {
@@ -45,6 +52,42 @@ export class DocumentsService {
       orderBy: { createdAt: 'desc' },
       include: { extraction: true },
     });
+  }
+
+  /** Delegates to paid/ResumeQuotaService (also exposed as GET /paid/resume-quota). */
+  async quota(userId: string) {
+    return this.resumeQuota.getQuota(userId);
+  }
+
+  /**
+   * After resume delete/replace: wipe resume-derived skills/projects/experience,
+   * re-apply the newest remaining COMPLETED resume (if any), then refresh gaps/roadmap/fit.
+   */
+  private async rebuildLearnerDerived(userId: string) {
+    const profile = await this.prisma.profile.findUnique({ where: { userId } });
+    if (!profile || profile.careerTrack === 'GOVERNMENT_EXAM') return;
+
+    await clearResumeDerivedProfile(this.prisma, profile.id);
+
+    const latestResume = await findLatestCompletedResume(this.prisma, userId);
+    if (latestResume?.extraction) {
+      const extracted = extractionFromRow(latestResume.extraction);
+      await this.applyExtractionToProfile(
+        userId,
+        extracted,
+        DocumentType.RESUME,
+        `${latestResume.filename} ${latestResume.originalName}`,
+        { skipClear: true },
+      );
+      return;
+    }
+
+    await this.evidence.persistDetectedStack(userId).catch(() => undefined);
+    await this.skillGaps.safeRecalculate(userId).catch((err) => this.logger.warn(err.message));
+    await this.corpus.ensureUserRoadmap(userId).catch((err) => this.logger.warn(err.message));
+    await this.fit.persist(userId).catch(() => undefined);
+    await this.matchAgent.matchAndSuggest(userId).catch((err) => this.logger.warn(err.message));
+    this.logger.log(`Resume cleared for ${userId}; profile/skills/gaps/roadmap rebuilt without a resume`);
   }
 
   async get(userId: string, id: string) {
@@ -92,6 +135,7 @@ export class DocumentsService {
 
     const docType = type ?? this.inferType(file.originalname);
     this.assertAllowedFile(docType, file);
+    await this.resumeQuota.assertCanUploadResume(userId, docType);
 
     const profile = await this.prisma.profile.findUnique({ where: { userId } });
     const stored = await this.storage.save(file.buffer, file.originalname, file.mimetype);
@@ -112,6 +156,7 @@ export class DocumentsService {
       },
       include: { extraction: true },
     });
+    await this.resumeQuota.bumpResumeUpload(userId, docType);
 
     void this.finishExtraction(userId, document.id, {
       status: hints?.status || profile?.status,
@@ -244,14 +289,17 @@ export class DocumentsService {
     },
     docType?: DocumentType,
     paperHint = '',
+    opts?: { skipClear?: boolean },
   ) {
     const profile = await this.prisma.profile.findUnique({ where: { userId } });
     if (!profile) return;
 
-    if (docType === DocumentType.RESUME && profile.careerTrack !== 'GOVERNMENT_EXAM') {
-      await this.prisma.userSkill.deleteMany({
-        where: { profileId: profile.id, source: 'DOCUMENT' },
-      });
+    if (
+      docType === DocumentType.RESUME &&
+      profile.careerTrack !== 'GOVERNMENT_EXAM' &&
+      !opts?.skipClear
+    ) {
+      await clearResumeDerivedProfile(this.prisma, profile.id);
     }
 
     for (const name of extracted.skillsDetected ?? []) {
@@ -423,9 +471,9 @@ export class DocumentsService {
     await this.evidence.persistDetectedStack(userId).catch(() => undefined);
     if (profile.careerTrack !== 'GOVERNMENT_EXAM') {
       await this.skillGaps.safeRecalculate(userId);
-      void this.matchAgent.matchAndSuggest(userId).catch((err) => this.logger.warn(err.message));
-      void this.corpus.ensureUserRoadmap(userId).catch((err) => this.logger.warn(err.message));
-      void this.fit.persist(userId).catch(() => undefined);
+      await this.matchAgent.matchAndSuggest(userId).catch((err) => this.logger.warn(err.message));
+      await this.corpus.ensureUserRoadmap(userId).catch((err) => this.logger.warn(err.message));
+      await this.fit.persist(userId).catch(() => undefined);
     }
   }
 
@@ -536,6 +584,7 @@ export class DocumentsService {
     }
     const docType = type ?? existing.type;
     this.assertAllowedFile(docType, file);
+    await this.resumeQuota.assertCanUploadResume(userId, docType);
 
     await this.storage.delete(existing.storageKey);
     await this.prisma.documentExtraction.deleteMany({ where: { documentId: existing.id } });
@@ -559,6 +608,8 @@ export class DocumentsService {
       },
       include: { extraction: true },
     });
+
+    await this.resumeQuota.bumpResumeUpload(userId, docType);
 
     void this.finishExtraction(userId, document.id, {
       status: hints?.status || profile?.status,
@@ -586,9 +637,26 @@ export class DocumentsService {
 
   async remove(userId: string, id: string) {
     const doc = await this.get(userId, id);
+    const wasResume = doc.type === DocumentType.RESUME;
     await this.storage.delete(doc.storageKey);
     await this.prisma.document.delete({ where: { id: doc.id } });
-    return { message: 'Document deleted' };
+
+    if (wasResume) {
+      await this.rebuildLearnerDerived(userId).catch((err) =>
+        this.logger.warn(`Rebuild after resume delete failed: ${(err as Error).message}`),
+      );
+      return {
+        message:
+          'Resume deleted. Skills, projects, experience, skill gap, roadmap, and dashboard scores were rebuilt from what remains.',
+        rebuilt: true,
+      };
+    }
+
+    await this.skillGaps.safeRecalculate(userId).catch((err) => this.logger.warn(err.message));
+    return {
+      message: 'Document deleted. Profile is refreshing from your remaining documents.',
+      rebuilt: false,
+    };
   }
 
   async removeAll(userId: string) {
@@ -597,7 +665,10 @@ export class DocumentsService {
       await this.storage.delete(doc.storageKey);
     }
     await this.prisma.document.deleteMany({ where: { userId } });
-    return { message: 'Documents deleted' };
+    await this.rebuildLearnerDerived(userId).catch((err) =>
+      this.logger.warn(`Rebuild after delete-all failed: ${(err as Error).message}`),
+    );
+    return { message: 'Documents deleted. Profile rebuilt without uploaded files.' };
   }
 
   private inferType(filename: string): DocumentType {

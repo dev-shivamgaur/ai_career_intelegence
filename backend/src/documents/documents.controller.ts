@@ -33,6 +33,11 @@ export class DocumentsController {
     return this.documents.list(user.userId);
   }
 
+  @Get('quota')
+  quota(@CurrentUser() user: AuthUser) {
+    return this.documents.quota(user.userId);
+  }
+
   @Delete()
   removeAll(@CurrentUser() user: AuthUser) {
     return this.documents.removeAll(user.userId);

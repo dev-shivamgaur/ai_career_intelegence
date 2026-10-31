@@ -57,6 +57,7 @@ export function PreparePage() {
         setLessonIndex(idx >= 0 ? idx : 0);
         const limits = await prepApi.preparationUsage().catch(() => null);
         if (!cancel && limits) setUsage(`${limits.plan} · grades ${limits.grades.used}/${limits.grades.limit}`);
+
         const hist = await prepApi.preparationHistory(started.session.id).catch(() => null);
         if (!cancel) setHistory(hist);
         const versions = await prepApi.listPrepPackages(started.session.skillId).catch(() => null);

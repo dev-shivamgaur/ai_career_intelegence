@@ -32,10 +32,13 @@ export function projectsFromResumeText(text: string): ParsedProject[] {
     }));
   }
   return urls.map((link, i) => {
-    const repo = link.split('/').filter(Boolean).slice(-1)[0] ?? `Project ${i + 1}`;
+    const parts = link.split('/').filter(Boolean);
+    const owner = parts[parts.length - 2] ?? '';
+    const repo = parts[parts.length - 1] ?? `Project ${i + 1}`;
+    // Keep hyphens in owner/repo (e.g. github.com/dev-shivamgaur/app).
     return {
-      name: repo.replace(/[-_]/g, ' '),
-      description: `GitHub repository extracted from the resume: ${link}`,
+      name: repo.replace(/_/g, '-'),
+      description: `GitHub repository extracted from the resume: ${link}${owner ? ` (owner: ${owner})` : ''}`,
       skills: [],
       link,
     };
@@ -60,7 +63,7 @@ function namedProjects(section: string): ParsedProject[] {
     if (first.length > 90) continue;
     const links = githubUrlsFromText(block);
     out.push({
-      name: first.replace(/[-•*]/g, '').trim().slice(0, 80) || 'Project',
+      name: first.replace(/[•*]/g, '').trim().slice(0, 80) || 'Project',
       description: block.replace(/\s+/g, ' ').slice(0, 600),
       skills: [],
       link: links[0],

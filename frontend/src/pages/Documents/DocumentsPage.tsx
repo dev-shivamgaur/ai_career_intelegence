@@ -8,6 +8,7 @@ import { EmptyState, ErrorState } from "@/components/ui/States";
 import { useToast } from "@/store/hooks";
 import { useProfile } from "@/context/ProfileContext";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import { getResumeQuota, ResumeQuotaBanner } from "@/paid";
 import * as documentApi from "@/services/api/documentApi";
 import type { DocumentType, ExtractedDocumentData, UploadedDocument } from "@/types";
 import { useState } from "react";
@@ -17,12 +18,18 @@ export function DocumentsPage() {
   const navigate = useNavigate();
   const { push } = useToast();
   const { data, loading, error, reload, setData } = useAsyncData(() => documentApi.listDocuments());
+  const quota = useAsyncData(() => getResumeQuota());
   const profile = useProfile();
   const [uploadingType, setUploadingType] = useState<DocumentType | null>(null);
   const [replacingId, setReplacingId] = useState<string | null>(null);
   const [extracted, setExtracted] = useState<ExtractedDocumentData | null>(null);
 
   if (error) return <ErrorState onRetry={() => void reload()} onDashboard={() => navigate("/dashboard")} />;
+
+  async function refreshQuota() {
+    await quota.reload();
+    await profile.reload();
+  }
 
   async function handleUpload(type: DocumentType, files: File[], label?: string) {
     setUploadingType(type);
@@ -47,7 +54,12 @@ export function DocumentsPage() {
         }
       }
       setData(await documentApi.listDocuments());
-      push("Document uploaded");
+      await refreshQuota();
+      push(
+        type === "resume"
+          ? "Resume uploaded. Skills, skill gap, roadmap, and dashboard scores are refreshing."
+          : "Document uploaded. Your profile is refreshing from the latest files.",
+      );
     } catch (err) {
       push(err instanceof Error ? err.message : "Upload failed");
       throw err;
@@ -57,11 +69,17 @@ export function DocumentsPage() {
   }
 
   async function handleDelete(id: string) {
+    const removed = (data ?? []).find((d) => d.id === id);
     try {
       await documentApi.deleteDocument(id);
       setData((prev) => (prev ?? []).filter((d) => d.id !== id));
       setExtracted((prev) => (prev?.documentId === id ? null : prev));
-      push("Document removed");
+      await refreshQuota();
+      push(
+        removed?.type === "resume"
+          ? "Resume removed. Skills, projects, experience, skill gap, roadmap, and dashboard were rebuilt."
+          : "Document removed. Profile is refreshing from what is left.",
+      );
     } catch (err) {
       push(err instanceof Error ? err.message : "Could not delete document");
       throw err;
@@ -89,7 +107,8 @@ export function DocumentsPage() {
       } catch {
         /* extraction may still be writing */
       }
-      push("Document updated");
+      await refreshQuota();
+      push("Document updated. Career match, gaps, and roadmap are regenerating.");
     } catch (err) {
       push(err instanceof Error ? err.message : "Could not replace document");
       throw err;
@@ -108,6 +127,8 @@ export function DocumentsPage() {
             : "Upload 10th, 12th, and semester marksheets one by one (all optional). Add more than one degree by name. Required slots follow whether you are still studying or already graduated."}
         </p>
       </div>
+
+      {quota.data && <ResumeQuotaBanner quota={quota.data} />}
 
       {profile.data && (
         <DocumentUploadSlots

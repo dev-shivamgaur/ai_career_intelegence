@@ -20,6 +20,11 @@ export async function listDocuments(): Promise<UploadedDocument[]> {
   return rows.map(mapDoc);
 }
 
+/** @deprecated Import from `@/paid` instead. */
+export type { ResumeQuota as DocumentQuota } from "@/paid/types";
+/** @deprecated Import `getResumeQuota` / `getDocumentQuota` from `@/paid`. */
+export { getDocumentQuota } from "@/paid/paidApi";
+
 export async function uploadDocument(
   file: File,
   type: DocumentType,

@@ -98,6 +98,9 @@ export interface CareerGoal {
 export interface Profile {
   id: string;
   userId: string;
+  /** FREE | PAID account plan (prep + resume limits). */
+  plan?: "FREE" | "PAID" | string;
+  resumeUploadCount?: number;
   name: string;
   status: UserStatus;
   educationLevel: EducationLevel;

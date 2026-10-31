@@ -170,5 +170,7 @@ export function applyPreparation(sessionId: string) {
 }
 
 export function preparationUsage() {
-  return http.get<{ plan: string; generates: { used: number; limit: number }; grades: { used: number; limit: number } }>("/preparation/usage");
+  return http.get<{ plan: string; generates: { used: number; limit: number }; grades: { used: number; limit: number } }>(
+    "/preparation/usage",
+  );
 }

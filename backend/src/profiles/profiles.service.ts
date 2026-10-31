@@ -94,10 +94,16 @@ export class ProfilesService {
       profile.careerTrack === CareerTrack.GOVERNMENT_EXAM ? null : await this.evidence.forUser(userId);
 
     const completionPercent = await this.computeCompletion(userId, profile, Boolean(goal || exam));
+    const account = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { prepPlan: true, resumeUploadCount: true },
+    });
 
     return {
       id: profile.id,
       userId: profile.userId,
+      plan: account?.prepPlan ?? 'FREE',
+      resumeUploadCount: account?.resumeUploadCount ?? 0,
       name: profile.name,
       status: profile.status,
       educationLevel: profile.educationLevel,

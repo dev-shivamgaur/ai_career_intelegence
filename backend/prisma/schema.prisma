@@ -210,6 +210,8 @@ model User {
   onboardingComplete Boolean   @default(false)
   /// Preparation engine access. FREE is the default. No payment provider sets this.
   prepPlan           PrepPlan  @default(FREE)
+  /// How many resume uploads/replacements this account has used (FREE plan is capped).
+  resumeUploadCount  Int       @default(0)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 

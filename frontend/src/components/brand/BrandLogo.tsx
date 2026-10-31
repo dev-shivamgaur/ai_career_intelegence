@@ -34,7 +34,7 @@ export function LogoMark({ className }: { className?: string }) {
       )}
       aria-hidden
     >
-      <svg viewBox="0 0 32 32" className="h-6 w-6" fill="none">
+      {/* <svg viewBox="0 0 32 32" className="h-6 w-6" fill="none">
         <path
           d="M7 23.5h4.2V18h4.4v-5.2h4.4V8H25"
           stroke="currentColor"
@@ -43,7 +43,11 @@ export function LogoMark({ className }: { className?: string }) {
           strokeLinejoin="round"
         />
         <circle cx="25" cy="8" r="1.7" fill="currentColor" />
-      </svg>
+      </svg> */}
+      <img
+      className="rounded-lg"
+      src="./logo.png"
+      />
     </span>
   );
 }

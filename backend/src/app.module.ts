@@ -30,6 +30,7 @@ import { SkillIntelModule } from './skill-intel/skill-intel.module';
 import { MarketModule } from './market/market.module';
 import { LearnerModule } from './learner/learner.module';
 import { PreparationModule } from './preparation/preparation.module';
+import { PaidModule } from './paid/paid.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { PreparationModule } from './preparation/preparation.module';
     MarketModule,
     LearnerModule,
     PreparationModule,
+    PaidModule,
   ],
 })
 export class AppModule {

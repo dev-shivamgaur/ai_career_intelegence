@@ -13,6 +13,8 @@ function mapProfile(raw: Record<string, unknown>): Profile {
   return {
     id: String(raw.id),
     userId: String(raw.userId),
+    plan: raw.plan ? String(raw.plan) : "FREE",
+    resumeUploadCount: Number(raw.resumeUploadCount ?? 0),
     name: String(raw.name ?? ""),
     status: mapEnum(String(raw.status), "fresher"),
     educationLevel: mapEnum(String(raw.educationLevel), "undergraduate"),
